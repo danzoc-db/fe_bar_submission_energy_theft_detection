@@ -117,3 +117,12 @@ export function useDemoSettings(): DemoSettings {
   if (!ctx) throw new Error("useDemoSettings must be used within DemoSettingsProvider");
   return ctx;
 }
+
+export function getModelHeaders(): Record<string, string> {
+  try {
+    const key = localStorage.getItem(STORAGE_KEY_MODEL) || "bedrock";
+    return { "x-model-key": key };
+  } catch {
+    return { "x-model-key": "bedrock" };
+  }
+}

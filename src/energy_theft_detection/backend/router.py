@@ -70,6 +70,20 @@ def _config(request: Request) -> AppConfig | None:
     return getattr(request.app.state, "config", None)
 
 
+_MODEL_KEY_ENDPOINTS = {
+    "bedrock": "ai_gateway_endpoint",
+    "openai": "openai_gateway_endpoint",
+    "llama": "llama_gateway_endpoint",
+}
+
+
+def _resolve_ai_endpoint(request: Request, config: AppConfig | None) -> str:
+    """Read X-Model-Key header and return the matching AI Gateway endpoint name."""
+    model_key = request.headers.get("x-model-key", "bedrock")
+    attr = _MODEL_KEY_ENDPOINTS.get(model_key, "ai_gateway_endpoint")
+    return getattr(config, attr, "energy-theft-bedrock-gateway") if config else ""
+
+
 # ---------------------------------------------------------------------------
 # In-memory TTL cache for SQL-heavy endpoints
 # ---------------------------------------------------------------------------
@@ -969,7 +983,7 @@ async def get_daily_briefing(request: Request):
         except Exception as e:
             logger.error(f"daily_briefing SQL failed: {type(e).__name__}: {e}")
 
-    ai_endpoint = config.ai_gateway_endpoint if config else ""
+    ai_endpoint = _resolve_ai_endpoint(request, config)
     briefing_text = ""
     actions: list[str] = []
 
@@ -1426,9 +1440,9 @@ async def generate_dispatch_report(request: Request, account_id: str):
         if theft_rows:
             prior_theft = int(theft_rows[0]["cnt"]) > 0
 
-    # --- 3. Call Bedrock via AI Gateway for narrative ---
+    # --- 3. Call LLM via AI Gateway for narrative ---
     narrative = ""
-    ai_endpoint = config.ai_gateway_endpoint if config else ""
+    ai_endpoint = _resolve_ai_endpoint(request, config)
 
     iso_score = float(acct.get("isolation_forest_score", 0))
     lstm_dev = float(acct.get("lstm_deviation_score", 0))
@@ -2303,7 +2317,7 @@ async def generate_board_report(request: Request):
     # Fallback: direct orchestration (Genie + Gemini + Bedrock)
     # ------------------------------------------------------------------
     genie_space_id = (config.genie_space_id if config else "").strip()
-    ai_endpoint = config.ai_gateway_endpoint if config else ""
+    ai_endpoint = _resolve_ai_endpoint(request, config)
     gemini_endpoint = config.gemini_gateway_endpoint if config else ""
 
     genie_tasks: list = []

@@ -49,6 +49,74 @@ resources:
           schema_name: "${var.schema}"
           enabled: true
 
+    openai_gateway:
+      name: "energy-theft-openai-gateway"
+      config:
+        served_entities:
+          - name: "openai-gpt4o-mini"
+            external_model:
+              name: "gpt-4o-mini"
+              provider: "openai"
+              task: "llm/v1/chat"
+              openai_config:
+                openai_api_type: "azure"
+      ai_gateway:
+        guardrails:
+          input:
+            safety: true
+            pii:
+              behavior: BLOCK
+          output:
+            safety: true
+            pii:
+              behavior: BLOCK
+        rate_limits:
+          - calls: 30
+            key: endpoint
+            renewal_period: minute
+          - calls: 10
+            key: user
+            renewal_period: minute
+        usage_tracking_config:
+          enabled: true
+        inference_table_config:
+          catalog_name: "${var.catalog}"
+          schema_name: "${var.schema}"
+          enabled: true
+
+    llama_gateway:
+      name: "energy-theft-llama-gateway"
+      config:
+        served_entities:
+          - name: "meta-llama-3-1-70b"
+            external_model:
+              name: "meta-llama-3.1-70b-instruct"
+              provider: "databricks-model-serving"
+              task: "llm/v1/chat"
+      ai_gateway:
+        guardrails:
+          input:
+            safety: true
+            pii:
+              behavior: BLOCK
+          output:
+            safety: true
+            pii:
+              behavior: BLOCK
+        rate_limits:
+          - calls: 30
+            key: endpoint
+            renewal_period: minute
+          - calls: 10
+            key: user
+            renewal_period: minute
+        usage_tracking_config:
+          enabled: true
+        inference_table_config:
+          catalog_name: "${var.catalog}"
+          schema_name: "${var.schema}"
+          enabled: true
+
     gemini_gateway:
       name: "energy-theft-gemini-gateway"
       config:
@@ -108,6 +176,14 @@ resources:
         - name: "gemini_endpoint"
           serving_endpoint:
             name: "energy-theft-gemini-gateway"
+            permission: "CAN_QUERY"
+        - name: "openai_endpoint"
+          serving_endpoint:
+            name: "energy-theft-openai-gateway"
+            permission: "CAN_QUERY"
+        - name: "llama_endpoint"
+          serving_endpoint:
+            name: "energy-theft-llama-gateway"
             permission: "CAN_QUERY"
 
   pipelines:
@@ -306,6 +382,14 @@ targets:
               serving_endpoint:
                 name: "energy-theft-gemini-gateway"
                 permission: "CAN_QUERY"
+            - name: "openai_endpoint"
+              serving_endpoint:
+                name: "energy-theft-openai-gateway"
+                permission: "CAN_QUERY"
+            - name: "llama_endpoint"
+              serving_endpoint:
+                name: "energy-theft-llama-gateway"
+                permission: "CAN_QUERY"
             - name: "genie-space"
               genie_space:
                 name: "Revenue Protection Executive Intelligence"
@@ -337,6 +421,14 @@ targets:
               serving_endpoint:
                 name: "energy-theft-gemini-gateway"
                 permission: "CAN_QUERY"
+            - name: "openai_endpoint"
+              serving_endpoint:
+                name: "energy-theft-openai-gateway"
+                permission: "CAN_QUERY"
+            - name: "llama_endpoint"
+              serving_endpoint:
+                name: "energy-theft-llama-gateway"
+                permission: "CAN_QUERY"
             - name: "genie-space"
               genie_space:
                 name: "Revenue Protection Executive Intelligence"
@@ -367,6 +459,14 @@ targets:
             - name: "gemini_endpoint"
               serving_endpoint:
                 name: "energy-theft-gemini-gateway"
+                permission: "CAN_QUERY"
+            - name: "openai_endpoint"
+              serving_endpoint:
+                name: "energy-theft-openai-gateway"
+                permission: "CAN_QUERY"
+            - name: "llama_endpoint"
+              serving_endpoint:
+                name: "energy-theft-llama-gateway"
                 permission: "CAN_QUERY"
             - name: "genie-space"
               genie_space:

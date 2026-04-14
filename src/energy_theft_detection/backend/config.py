@@ -41,6 +41,14 @@ class AppConfig(BaseSettings):
         default="energy-theft-gemini-gateway",
         validation_alias="GEMINI_GATEWAY_ENDPOINT",
     )
+    openai_gateway_endpoint: str = Field(
+        default="energy-theft-openai-gateway",
+        validation_alias="OPENAI_GATEWAY_ENDPOINT",
+    )
+    llama_gateway_endpoint: str = Field(
+        default="energy-theft-llama-gateway",
+        validation_alias="LLAMA_GATEWAY_ENDPOINT",
+    )
     mas_endpoint: str = Field(
         default="mas-37323382-endpoint",
         validation_alias="MAS_ENDPOINT",

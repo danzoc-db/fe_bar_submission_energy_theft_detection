@@ -21,6 +21,7 @@ import {
   HoodBullet,
   FabricCallout,
 } from "@/components/under-the-hood";
+import { useDemoSettings } from "@/lib/demo-settings";
 
 function AppArchHood() {
   return (
@@ -69,6 +70,34 @@ function AppArchHood() {
         </p>
       </FabricCallout>
     </UnderTheHood>
+  );
+}
+
+function PrimaryModelBox() {
+  const { modelConfig } = useDemoSettings();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className={`rounded-lg border ${modelConfig.borderColor} ${modelConfig.bgColor} px-3 py-2.5 text-center cursor-help transition-colors`}
+          style={{ borderColor: `${modelConfig.color}33`, backgroundColor: `${modelConfig.color}0A` }}
+        >
+          <Cloud className="h-5 w-5 mx-auto mb-1" style={{ color: modelConfig.color }} />
+          <p className="text-sm font-bold text-foreground">{modelConfig.provider}</p>
+          <p className="text-[10px] text-muted-foreground">{modelConfig.model}</p>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-[320px] text-xs space-y-1">
+        <p className="font-semibold">{modelConfig.provider} via AI Gateway</p>
+        <p>{modelConfig.model} accessed through Databricks Model Serving endpoint with AI Gateway guardrails.</p>
+        <p><strong>Daily Briefing</strong> — morning triage for investigations team</p>
+        <p><strong>Case Summary</strong> — structured narrative per flagged account</p>
+        <p><strong>Field Dispatch</strong> — checklist + risk context for engineers</p>
+        <p className="text-muted-foreground italic">PII blocked · safety guardrails · rate-limited · inference tables</p>
+        <p className="font-semibold pt-1 border-t border-border/50">AI Gateway Security Perimeter</p>
+        <p>All LLM providers are accessed via AI Gateway — every call stays within Databricks. Switch models from the hero page to compare.</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -261,25 +290,7 @@ export function ArchitectureDiagram() {
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="rounded-lg border border-[#FF9900]/30 bg-[#FF9900]/[0.04] px-3 py-2.5 text-center cursor-help hover:border-[#FF9900]/50 transition-colors">
-                    <Cloud className="h-5 w-5 text-[#FF9900] mx-auto mb-1" />
-                    <p className="text-sm font-bold text-foreground">Bedrock LLM</p>
-                    <p className="text-[10px] text-muted-foreground">Claude 3.5 Haiku</p>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-[320px] text-xs space-y-1">
-                  <p className="font-semibold">Amazon Bedrock via AI Gateway</p>
-                  <p>Claude 3.5 Haiku accessed through Databricks Model Serving endpoint with AI Gateway guardrails.</p>
-                  <p><strong>Daily Briefing</strong> — morning triage for investigations team</p>
-                  <p><strong>Case Summary</strong> — structured narrative per flagged account</p>
-                  <p><strong>Field Dispatch</strong> — checklist + risk context for engineers</p>
-                  <p className="text-muted-foreground italic">PII blocked · safety guardrails · rate-limited · inference tables</p>
-                  <p className="font-semibold pt-1 border-t border-border/50">AI Gateway Security Perimeter</p>
-                  <p>Anthropic, Gemini, and OpenAI are all accessible via AI Gateway — every call stays within Databricks, so external providers never see your data. Newer models, same security promises.</p>
-                </TooltipContent>
-              </Tooltip>
+              <PrimaryModelBox />
             </div>
             <Tooltip>
               <TooltipTrigger asChild>
