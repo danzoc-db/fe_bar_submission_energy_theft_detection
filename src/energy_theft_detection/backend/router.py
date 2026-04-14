@@ -3284,6 +3284,6 @@ async def current_user(request: Request):
     forwarded_user = request.headers.get("X-Forwarded-Preferred-Username", "")
     display_name = forwarded_user.split("@")[0].replace(".", " ").title() if forwarded_user else "Demo User"
     return CurrentUserOut(
-        user_name=forwarded_user or "demo@britishgas.co.uk",
+        user_name=forwarded_user or "demo@ukigas.co.uk",
         display_name=display_name or "Demo User",
     )
