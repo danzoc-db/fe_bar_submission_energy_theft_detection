@@ -2954,8 +2954,25 @@ async def get_ai_components(request: Request):
     return result
 
 
-HAIKU_INPUT_COST_PER_TOKEN = 0.25 / 1_000_000
-HAIKU_OUTPUT_COST_PER_TOKEN = 1.25 / 1_000_000
+_GATEWAY_ENDPOINTS = (
+    "energy-theft-bedrock-gateway",
+    "energy-theft-gemini-gateway",
+    "energy-theft-openai-gateway",
+    "energy-theft-llama-gateway",
+)
+_GATEWAY_IN_CLAUSE = ", ".join(f"'{e}'" for e in _GATEWAY_ENDPOINTS)
+
+_COST_PER_TOKEN: dict[str, tuple[float, float]] = {
+    "energy-theft-bedrock-gateway": (0.25 / 1e6, 1.25 / 1e6),      # Claude 3.5 Haiku
+    "energy-theft-gemini-gateway": (0.075 / 1e6, 0.30 / 1e6),      # Gemini 2.0 Flash
+    "energy-theft-openai-gateway": (0.15 / 1e6, 0.60 / 1e6),       # GPT-4o Mini via FMAPI
+    "energy-theft-llama-gateway": (0.07 / 1e6, 0.07 / 1e6),        # Llama 3.1 70B via FMAPI (DBRX pricing)
+}
+_DEFAULT_COST = (0.25 / 1e6, 1.25 / 1e6)
+
+def _row_cost(endpoint_name: str, input_tokens: int, output_tokens: int) -> float:
+    inp_rate, out_rate = _COST_PER_TOKEN.get(endpoint_name, _DEFAULT_COST)
+    return round(input_tokens * inp_rate + output_tokens * out_rate, 6)
 
 
 @api.get(
@@ -2980,7 +2997,7 @@ async def get_ai_gateway_audit(request: Request, limit: int = 100):
                 FROM system.serving.endpoint_usage eu
                 JOIN system.serving.served_entities se
                   ON eu.served_entity_id = se.served_entity_id
-                WHERE se.endpoint_name IN ('energy-theft-bedrock-gateway', 'energy-theft-gemini-gateway')
+                WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
                 ORDER BY eu.request_time DESC
                 LIMIT {limit}
             """)
@@ -2993,10 +3010,10 @@ async def get_ai_gateway_audit(request: Request, limit: int = 100):
                         input_token_count=int(r["input_token_count"] or 0),
                         output_token_count=int(r["output_token_count"] or 0),
                         total_token_count=int(r["total_token_count"] or 0),
-                        cost_usd=round(
-                            int(r["input_token_count"] or 0) * HAIKU_INPUT_COST_PER_TOKEN
-                            + int(r["output_token_count"] or 0) * HAIKU_OUTPUT_COST_PER_TOKEN,
-                            6,
+                        cost_usd=_row_cost(
+                            r["endpoint_name"],
+                            int(r["input_token_count"] or 0),
+                            int(r["output_token_count"] or 0),
                         ),
                         latency_ms=0.0,
                         status_code=int(r["status_code"] or 200),
@@ -3018,34 +3035,41 @@ async def get_audit_summary(request: Request):
     db = _sql(request)
     if db:
         try:
-            rows = db.execute("""
+            rows = db.execute(f"""
                 SELECT
-                  COUNT(*) AS total_calls,
+                  se.endpoint_name,
+                  COUNT(*) AS calls,
                   COALESCE(SUM(eu.input_token_count), 0) AS total_input,
                   COALESCE(SUM(eu.output_token_count), 0) AS total_output,
-                  COALESCE(AVG(eu.input_token_count + eu.output_token_count), 0) AS avg_tokens,
-                  COUNT_IF(eu.status_code >= 400) AS error_count
+                  COUNT_IF(eu.status_code >= 400) AS errors
                 FROM system.serving.endpoint_usage eu
                 JOIN system.serving.served_entities se
                   ON eu.served_entity_id = se.served_entity_id
-                WHERE se.endpoint_name IN ('energy-theft-bedrock-gateway', 'energy-theft-gemini-gateway')
+                WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+                GROUP BY se.endpoint_name
             """)
             if rows:
-                r = rows[0]
-                total_input = int(r["total_input"] or 0)
-                total_output = int(r["total_output"] or 0)
-                total_cost = round(
-                    total_input * HAIKU_INPUT_COST_PER_TOKEN
-                    + total_output * HAIKU_OUTPUT_COST_PER_TOKEN,
-                    4,
-                )
+                total_calls = 0
+                total_input = 0
+                total_output = 0
+                total_cost = 0.0
+                total_errors = 0
+                for r in rows:
+                    ep = r["endpoint_name"]
+                    inp = int(r["total_input"] or 0)
+                    out = int(r["total_output"] or 0)
+                    total_calls += int(r["calls"] or 0)
+                    total_input += inp
+                    total_output += out
+                    total_errors += int(r["errors"] or 0)
+                    total_cost += _row_cost(ep, inp, out)
                 return AuditSummary(
-                    total_calls=int(r["total_calls"] or 0),
+                    total_calls=total_calls,
                     total_input_tokens=total_input,
                     total_output_tokens=total_output,
-                    total_cost_usd=total_cost,
+                    total_cost_usd=round(total_cost, 4),
                     avg_latency_ms=0.0,
-                    error_count=int(r["error_count"] or 0),
+                    error_count=total_errors,
                 )
         except Exception as e:
             logger.error(f"Audit summary query failed: {e}")

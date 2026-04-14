@@ -150,7 +150,7 @@ function GovernancePage() {
             AI Gateway — Your Models, Your Security Perimeter
           </p>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Databricks AI Gateway provides a single, governed endpoint for Anthropic, Gemini, and OpenAI models.
+            Databricks AI Gateway provides a single, governed endpoint for Anthropic, Google Gemini, OpenAI, and Meta Llama models.
             Because every call routes through Databricks, your data never leaves the security perimeter — external
             providers cannot access your tables, PII, or prompts. Customers get access to the newest model
             capabilities with the same security guarantees they trust for their most sensitive data.
@@ -993,6 +993,22 @@ function LineageDAG() {
   );
 }
 
+const ENDPOINT_DISPLAY: Record<string, { label: string; color: string }> = {
+  "energy-theft-bedrock-gateway": { label: "Bedrock", color: "border-[#FF9900] text-[#FF9900] bg-[#FF9900]/5" },
+  "energy-theft-gemini-gateway": { label: "Gemini", color: "border-blue-500 text-blue-600 bg-blue-500/5" },
+  "energy-theft-openai-gateway": { label: "OpenAI", color: "border-emerald-500 text-emerald-600 bg-emerald-500/5" },
+  "energy-theft-llama-gateway": { label: "Llama", color: "border-purple-500 text-purple-600 bg-purple-500/5" },
+};
+
+function EndpointBadge({ name }: { name: string }) {
+  const display = ENDPOINT_DISPLAY[name] ?? { label: name, color: "border-muted text-muted-foreground" };
+  return (
+    <Badge variant="outline" className={`text-[10px] whitespace-nowrap ${display.color}`}>
+      {display.label}
+    </Badge>
+  );
+}
+
 const AUDIT_REFETCH_MS = 30_000;
 
 function AuditPanel() {
@@ -1060,6 +1076,7 @@ function AuditPanel() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Timestamp</TableHead>
+                    <TableHead>Model</TableHead>
                     <TableHead>Caller</TableHead>
                     <TableHead className="text-right">Input</TableHead>
                     <TableHead className="text-right">Output</TableHead>
@@ -1078,7 +1095,10 @@ function AuditPanel() {
                           {ts.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}{" "}
                           {ts.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                         </TableCell>
-                        <TableCell className="text-xs max-w-[160px] truncate">
+                        <TableCell>
+                          <EndpointBadge name={e.endpoint_name} />
+                        </TableCell>
+                        <TableCell className="text-xs max-w-[140px] truncate">
                           {e.request_user}
                         </TableCell>
                         <TableCell className="text-right font-mono text-xs">
