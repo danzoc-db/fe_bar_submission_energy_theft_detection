@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { MeterReadPoint } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +48,7 @@ import {
   getColumnMetadataKey,
   getDashboardKPIs,
   getDashboardKPIsKey,
+  useCloseInvestigation,
 } from "@/lib/api";
 import type { DispatchReport, RiskTier } from "@/lib/api";
 import { InvestigationStatus } from "@/lib/api";
@@ -1045,8 +1048,145 @@ function AccountDetailContent({ accountId }: { accountId: string }) {
             Failed to generate dispatch. Try again.
           </p>
         )}
+
+        {/* Close Investigation */}
+        <CloseInvestigationSection accountId={accountId} />
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Close Investigation
+// ---------------------------------------------------------------------------
+
+function CloseInvestigationSection({ accountId }: { accountId: string }) {
+  const [open, setOpen] = useState(false);
+  const [outcome, setOutcome] = useState<"confirmed_theft" | "no_theft" | "inconclusive">("confirmed_theft");
+  const [recoveredAmount, setRecoveredAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const closeMutation = useCloseInvestigation();
+  const queryClient = useQueryClient();
+
+  const handleSubmit = () => {
+    closeMutation.mutate(
+      {
+        accountId,
+        body: {
+          outcome,
+          recovered_amount: outcome === "confirmed_theft" && recoveredAmount ? parseFloat(recoveredAmount) : null,
+          notes: notes || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success("Investigation closed successfully");
+          setOpen(false);
+          queryClient.invalidateQueries({ queryKey: listFlaggedAccountsKey() });
+          queryClient.invalidateQueries({ queryKey: getInvestigationKPIsKey() });
+          queryClient.invalidateQueries({ queryKey: getDashboardKPIsKey() });
+        },
+        onError: () => {
+          toast.error("Failed to close investigation");
+        },
+      },
+    );
+  };
+
+  return (
+    <div className="pt-2">
+      {!open ? (
+        <Button
+          variant="outline"
+          className="w-full border-green-500/40 text-green-600 hover:bg-green-50"
+          onClick={() => setOpen(true)}
+        >
+          <CheckCircle className="h-4 w-4 mr-2" />
+          Close Investigation
+        </Button>
+      ) : (
+        <Card className="border-green-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Close Investigation — {accountId}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outcome</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: "confirmed_theft", label: "Confirmed Theft", color: "border-red-500 bg-red-50 text-red-700" },
+                  { value: "no_theft", label: "No Theft", color: "border-green-500 bg-green-50 text-green-700" },
+                  { value: "inconclusive", label: "Inconclusive", color: "border-amber-500 bg-amber-50 text-amber-700" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setOutcome(opt.value)}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                      outcome === opt.value ? opt.color + " ring-2 ring-offset-1 ring-current" : "border-muted bg-muted/30 text-muted-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {outcome === "confirmed_theft" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Recovered Amount (£)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 4500.00"
+                  value={recoveredAmount}
+                  onChange={(e) => setRecoveredAmount(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Notes (optional)
+              </label>
+              <textarea
+                placeholder="Investigation notes..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm resize-none"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                disabled={closeMutation.isPending}
+                onClick={handleSubmit}
+              >
+                {closeMutation.isPending ? (
+                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Closing...</>
+                ) : (
+                  <><CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Confirm Close</>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
