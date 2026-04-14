@@ -1,5 +1,5 @@
 # 🔍 Databricks Demo: AI-Driven Energy Theft Detection
-### British Gas / Centrica — Demo Specification
+### UKI Gas / UKI Energy — Demo Specification
 
 ---
 
@@ -13,11 +13,11 @@ payment. It is physical, organised, and growing.
 | Annual value stolen across Great Britain | **£1.4bn/year** | RECCo / Capgemini, Jan 2023; RECCo Feb 2026 |
 | Added to every honest household's bill | **£50/year** | RECCo, Feb 2026 |
 | Deaths from tampered supplies | **~36/year (every 10 days)** | Ofgem ETU Decision, R0233, June 2025 |
-| British Gas estimated theft exposure | **£392m/year** | Derived: RECCo % × BG market share |
+| UKI Gas estimated theft exposure | **£392m/year** | Derived: RECCo % × BG market share |
 | ML-recoverable value (30% benchmark) | **£118m/year** | Industry benchmark |
-| British Gas Home Energy divisional profit (2025) | **£163m** | Centrica Preliminary Results, Feb 2026 |
+| UKI Gas Home Energy divisional profit (2025) | **£163m** | UKI Energy Preliminary Results, Feb 2026 |
 
-**The anchor stat:** £118m recoverable = **72% of British Gas's entire Home Energy
+**The anchor stat:** £118m recoverable = **72% of UKI Gas's entire Home Energy
 divisional operating profit.** Early, accurate detection of meter anomalies is one
 of the most material levers available to protect that margin.
 
@@ -44,9 +44,9 @@ designed. Every KPI tile, every chart, and every agent action maps back to one o
 
 ### 🕵️ Robbie Henderson
 **Senior Revenue Protection Analyst — Theft Detection**
-*British Gas Home Energy Supply | Revenue Protection Team*
+*UKI Gas Home Energy Supply | Revenue Protection Team*
 
-Robbie is a mid-career data analyst embedded in British Gas's Revenue Protection
+Robbie is a mid-career data analyst embedded in UKI Gas's Revenue Protection
 team. His job is to take anomaly signals from the ML platform and turn them into
 confirmed theft cases: reviewing flagged accounts, dispatching field engineers,
 and closing cases. He is comfortable with data tools but is not a data scientist
@@ -80,11 +80,11 @@ dispatch. The app collapses a 40-minute manual investigation per account into mi
 ---
 
 ### 📊 Susie Chambers
-**Head of Revenue Protection & Financial Crime, British Gas Home Energy**
-*Centrica plc | Director-level, reporting to Chief Customer Officer*
+**Head of Revenue Protection & Financial Crime, UKI Gas Home Energy**
+*UKI Energy plc | Director-level, reporting to Chief Customer Officer*
 
 Susie owns the Revenue Protection function as a P&L-accountable director. She
-presents to the British Gas Home Energy CFO quarterly on theft exposure and
+presents to the UKI Gas Home Energy CFO quarterly on theft exposure and
 recovery, and to the Group Risk Committee annually. She manages Robbie's team,
 field engineering capacity, and regulatory compliance obligations under Ofgem's
 new Energy Theft Unit (ETU). She does not write SQL. She opens dashboards and
@@ -305,7 +305,7 @@ Click any row → Account Detail Drawer.
 
 ```
 Prompt:
-"You are an energy theft investigation assistant for British Gas.
+"You are an energy theft investigation assistant for UKI Gas.
 Given the following account anomaly data, generate a structured investigation
 summary: risk assessment, key signals, recommended action, and priority.
 
@@ -363,7 +363,7 @@ Step 4 — Write document reference to investigation_cases.field_dispatch_doc
 
 **Document output:**
 ```markdown
-# British Gas — Field Investigation Dispatch
+# UKI Gas — Field Investigation Dispatch
 **Case Reference:** {case_id} | **Priority:** HIGH | **Date:** {today}
 
 ## Risk Summary
@@ -441,7 +441,7 @@ governance layer and authentication model.
 Show last 100 LLM calls: timestamp, caller, token count, latency,
 guardrail triggered (PII detection, prompt injection filter).
 
-**Demo talking point:** Under Ofgem licence conditions, British Gas must evidence
+**Demo talking point:** Under Ofgem licence conditions, UKI Gas must evidence
 its theft investigation processes. The AI Gateway audit log, UC lineage, and model
 cards provide that audit trail natively — in one place.
 
@@ -514,7 +514,7 @@ Present as a dismissible panel or on request from Susie / exec audience.
 
 ### Phase 8 — Demo Polish
 - [ ] "Simulated Data — Demo Environment" banners on all data pages
-- [ ] Centrica / British Gas branding (colours: #0A84C8 blue, white)
+- [ ] UKI Energy / UKI Gas branding (colours: #0A84C8 blue, white)
 - [ ] Executive narrative tooltips on KPI tiles (hover = source citation)
 - [ ] Compete rationale panel (Section 10)
 
@@ -528,14 +528,14 @@ Present as a dismissible panel or on request from Susie / exec audience.
 | £50/year per household | RECCo, February 2026 |
 | ~36 deaths/year | Ofgem ETU Decision, REC Change R0233, June 2025 |
 | ETU approved | Ofgem R0233, June 2025 |
-| British Gas 7.5m customers | Centrica 2025 Preliminary Results, Feb 2026 |
-| British Gas Home Energy AOP: £163m | Centrica 2025 Preliminary Results, Feb 2026 |
-| UK trade receivables: £1,443m | Centrica Financial Statements 2025 |
+| UKI Gas 7.5m customers | UKI Energy 2025 Preliminary Results, Feb 2026 |
+| UKI Gas Home Energy AOP: £163m | UKI Energy 2025 Preliminary Results, Feb 2026 |
+| UK trade receivables: £1,443m | UKI Energy Financial Statements 2025 |
 | 30% ML recovery rate | Industry benchmark, AI-augmented detection programmes |
 | £392m exposure / £118m recoverable | Derived: RECCo % × BG market share |
 
 ---
 
-*All financial figures for British Gas theft exposure are estimates derived from public sources.*
+*All financial figures for UKI Gas theft exposure are estimates derived from public sources.*
 *Demo data must be clearly labelled as simulated throughout the application.*
 *Catalog: `dz_demos.energy_theft` — update all SQL references accordingly.*

@@ -79,7 +79,7 @@ function TitleSlide() {
   return (
     <section className="flex flex-col items-center justify-center min-h-[500px] text-center space-y-6">
       <Badge variant="outline" className="text-accent border-accent/50">
-        Databricks x British Gas
+        Databricks x UKI Gas
       </Badge>
       <h1 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight max-w-3xl">
         <span className="text-accent">£1.4 billion</span> is stolen from
@@ -87,7 +87,7 @@ function TitleSlide() {
         <span className="text-muted-foreground">40% goes undetected.</span>
       </h1>
       <p className="text-xl font-medium max-w-2xl">
-        How might British Gas turn{" "}
+        How might UKI Gas turn{" "}
         <span className="text-accent">£323M</span> of loss exposure into
         recovered revenue, faster, with Data & AI?
       </p>
@@ -101,7 +101,7 @@ function TitleSlide() {
       </p>
       <Separator className="max-w-xs" />
       <div className="flex gap-4 text-sm text-muted-foreground">
-        <span>British Gas / Centrica</span>
+        <span>UKI Gas / UKI Energy</span>
         <span>·</span>
         <span>Databricks Field Engineering</span>
         <span>·</span>
@@ -120,20 +120,20 @@ function ChallengeSlide() {
       <section className="space-y-8">
         <h2 className="text-3xl font-bold">The Financial Challenge</h2>
         <p className="text-muted-foreground max-w-2xl">
-          British Gas&rsquo;s energy theft exposure doesn&rsquo;t just erode
+          UKI Gas&rsquo;s energy theft exposure doesn&rsquo;t just erode
           margin — it exceeds the entire Home Energy divisional profit.
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <SourcedMetric
             value="£323M/yr"
-            label="BG energy theft exposure"
-            source="RECCo (Retail Energy Code Company) commissioned Capgemini to estimate UK energy theft (Jan 2023): up to £1.4bn/yr across GB. BG share: 23.1% domestic market (Cornwall Insights / Ofgem, Jan 2025) × £1.4bn = £323M."
+            label="UKI Gas energy theft exposure"
+            source="RECCo (Retail Energy Code Company) commissioned Capgemini to estimate UK energy theft (Jan 2023): up to £1.4bn/yr across GB. UKI Gas share: 23.1% domestic market × £1.4bn = £323M."
           />
           <SourcedMetric
             value="£163M"
             label="Divisional profit"
-            source="British Gas Home Energy divisional operating profit — Centrica Preliminary Results, Feb 2026."
+            source="UKI Gas Home Energy divisional operating profit — UKI Energy Preliminary Results, Feb 2026."
             accent
           />
           <SourcedMetric
@@ -213,7 +213,7 @@ function MeetSusieSlide() {
         <div>
           <h2 className="text-3xl font-bold">Meet Susie</h2>
           <p className="text-muted-foreground">
-            Head of Revenue Protection & Financial Crime, British Gas Home Energy
+            Head of Revenue Protection & Financial Crime, UKI Gas Home Energy
           </p>
         </div>
       </div>
@@ -706,7 +706,7 @@ function WhyDatabricksSlide() {
     <section className="space-y-8">
       <h2 className="text-3xl font-bold">Why Databricks</h2>
       <p className="text-muted-foreground max-w-2xl">
-        This isn&rsquo;t a feature comparison. It&rsquo;s about how fast British Gas
+        This isn&rsquo;t a feature comparison. It&rsquo;s about how fast UKI Gas
         can move from exposure to recovered revenue.
       </p>
       <div className="grid md:grid-cols-2 gap-4">
@@ -800,7 +800,7 @@ function PresentationPage() {
     <div className="container mx-auto py-8 px-4">
       <SlideDeck
         slides={slides}
-        title="British Gas Revenue Protection"
+        title="UKI Gas Revenue Protection"
       />
     </div>
   );

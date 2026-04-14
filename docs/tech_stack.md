@@ -130,8 +130,8 @@ Responses are parsed into Pydantic response models in the FastAPI route handlers
 
 | Element | Value |
 |---------|-------|
-| Primary colour | British Gas blue `#0A84C8` |
-| Secondary | Centrica corporate white/grey |
+| Primary colour | UKI Gas blue `#0A84C8` |
+| Secondary | UKI Energy corporate white/grey |
 | Font | System default (Inter or similar sans-serif) |
 | Banner | "Simulated Data — Demo Environment" on every page |
 

@@ -1,4 +1,4 @@
-# British Gas Energy Theft Detection
+# UKI Gas Energy Theft Detection
 
 AI-driven anomaly detection demo built on Databricks — APX (FastAPI + React).
 

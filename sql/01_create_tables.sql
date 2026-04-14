@@ -2,7 +2,7 @@
 -- Catalog: dz_demos | Schema: energy_theft_protection
 
 CREATE SCHEMA IF NOT EXISTS dz_demos.energy_theft_protection
-COMMENT 'British Gas Energy Theft Detection — AI anomaly detection demo. SIMULATED DATA.';
+COMMENT 'UKI Gas Energy Theft Detection — AI anomaly detection demo. SIMULATED DATA.';
 
 USE CATALOG dz_demos;
 USE SCHEMA energy_theft_protection;
@@ -60,7 +60,7 @@ CREATE OR REPLACE TABLE investigation_cases (
   case_id               STRING    COMMENT 'Unique case identifier',
   account_id            STRING    COMMENT 'PII: Links investigation to customer',
   opened_timestamp      TIMESTAMP COMMENT 'When case was opened',
-  investigator_id       STRING    COMMENT 'PII (staff): Identifies British Gas employee',
+  investigator_id       STRING    COMMENT 'PII (staff): Identifies UKI Gas employee',
   llm_summary           STRING    COMMENT 'PII (derived): Bedrock-generated summary may contain PII',
   field_dispatch_doc    STRING    COMMENT 'Field investigation document',
   outcome               STRING    COMMENT 'THEFT_CONFIRMED | FALSE_POSITIVE | PENDING',

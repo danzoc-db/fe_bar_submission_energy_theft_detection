@@ -1,7 +1,7 @@
 [project]
 name = "energy-theft-detection"
 dynamic = ["version"]
-description = "British Gas Energy Theft Detection — AI-driven anomaly detection demo"
+description = "UKI Gas Energy Theft Detection — AI-driven anomaly detection demo"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

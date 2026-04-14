@@ -3,7 +3,7 @@
 # MAGIC # Bord Gáis Energy — Validation Tests
 # MAGIC
 # MAGIC Run after Genie Code has generated and executed the BGE bronze ingest notebook.
-# MAGIC Validates that Irish data landed correctly and coexists with British Gas data.
+# MAGIC Validates that Irish data landed correctly and coexists with UKI Gas data.
 
 # COMMAND ----------
 
@@ -33,7 +33,7 @@ def check(name, condition, msg):
 
 for table in ["property_reference", "meters", "smart_meter_reads", "_ground_truth_labels"]:
     bus = [r["business_unit"] for r in spark.sql(f"SELECT DISTINCT business_unit FROM {table}").collect()]
-    check(f"{table}_has_british_gas", "british_gas" in bus, f"Missing british_gas in {table}")
+    check(f"{table}_has_uki_gas", "uki_gas" in bus, f"Missing uki_gas in {table}")
     check(f"{table}_has_bord_gais", "bord_gais" in bus, f"Missing bord_gais in {table}")
 
 # COMMAND ----------
@@ -43,7 +43,7 @@ for table in ["property_reference", "meters", "smart_meter_reads", "_ground_trut
 
 # COMMAND ----------
 
-bg_props = spark.sql("SELECT COUNT(*) AS c FROM property_reference WHERE business_unit = 'british_gas'").collect()[0]["c"]
+bg_props = spark.sql("SELECT COUNT(*) AS c FROM property_reference WHERE business_unit = 'uki_gas'").collect()[0]["c"]
 bge_props = spark.sql("SELECT COUNT(*) AS c FROM property_reference WHERE business_unit = 'bord_gais'").collect()[0]["c"]
 check("bg_property_count", bg_props == 2000, f"Expected 2000, got {bg_props}")
 check("bge_property_count", bge_props == 500, f"Expected 500, got {bge_props}")

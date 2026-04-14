@@ -11,7 +11,7 @@ export function Logo({ to = "/", className = "", showText = true }: LogoProps) {
     <div className={`flex items-center gap-2.5 ${className}`}>
       <img
         src="/bg-icon.svg"
-        alt="British Gas"
+        alt="UKI Gas"
         className="h-7 w-auto"
       />
       {showText && (

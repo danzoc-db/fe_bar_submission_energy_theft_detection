@@ -282,7 +282,7 @@ const KPI_META: KPIMeta[] = [
       const recStr = recovered >= 1_000_000 ? `£${(recovered / 1_000_000).toFixed(1)}M` : `£${Math.round(recovered / 1_000)}K`;
       const net = kpis.annual_theft_exposure_gbp - recovered;
       const netStr = `£${Math.round(net / 1_000_000)}M`;
-      return `Derived from RECCo's £1.4bn UK theft estimate × British Gas's 23.1% domestic market share (Ofgem retail market indicators, Jan 2025). Label as estimate — directionally correct for executive conversation.\n\n↓ ${recStr} recovered YTD → ${netStr} net remaining exposure.`;
+      return `Derived from RECCo's £1.4bn UK theft estimate × UKI Gas's 23.1% domestic market share (Ofgem retail market indicators, Jan 2025). Label as estimate — directionally correct for executive conversation.\n\n↓ ${recStr} recovered YTD → ${netStr} net remaining exposure.`;
     },
     format: (n) => `£${Math.round(n / 1_000_000)}M`,
     subtitle: (kpis) => {
@@ -298,7 +298,7 @@ const KPI_META: KPIMeta[] = [
     icon: TrendingDown,
     keylineColor: "bg-bg-orange",
     tooltip:
-      "British Gas Home Energy divisional operating profit was £163m (Centrica Preliminary Results, Feb 2026). Theft exposure (~£323m) is nearly 2x the entire division's profit.",
+      "UKI Gas Home Energy divisional operating profit was £163m (UKI Energy Preliminary Results, Feb 2026). Theft exposure (~£323m) is nearly 2x the entire division's profit.",
     format: (n) => `${Math.round(n)}%`,
     subtitle: "£323m exposure\nvs £163m operating profit",
   },
@@ -619,7 +619,7 @@ function RecoveryOpportunityCard() {
           <div className="rounded border border-dashed border-muted-foreground/20 bg-muted/30 px-3 py-2">
             <p className="text-[10px] text-muted-foreground">
               <span className="font-semibold text-foreground">Group context:</span>{" "}
-              £97M BG recovery target = 12% of Centrica Group adj. operating profit (£814M, FY2025)
+              £97M UKI Gas recovery target = 12% of UKI Energy Group adj. operating profit (£814M, FY2025)
             </p>
           </div>
         </div>

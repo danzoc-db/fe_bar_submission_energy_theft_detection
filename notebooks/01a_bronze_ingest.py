@@ -1,8 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Seed Raw Data — British Gas Synthetic Data to Volume
+# MAGIC # Seed Raw Data — UKI Gas Synthetic Data to Volume
 # MAGIC
-# MAGIC Generates realistic smart meter data for British Gas and writes raw **parquet
+# MAGIC Generates realistic smart meter data for UKI Gas and writes raw **parquet
 # MAGIC files** to a UC Volume.  The Spark Declarative Pipeline (`energy_theft_medallion`)
 # MAGIC ingests from this volume via Auto Loader into bronze streaming tables.
 # MAGIC
@@ -23,7 +23,7 @@ dbutils.widgets.text("catalog", "dz_demos")
 dbutils.widgets.text("schema", "energy_theft_protection")
 CATALOG = dbutils.widgets.get("catalog")
 SCHEMA = dbutils.widgets.get("schema")
-BUSINESS_UNIT = "british_gas"
+BUSINESS_UNIT = "uki_gas"
 NUM_ACCOUNTS = 2_000
 TAMPERED_PCT = 0.03
 EDGE_CASE_PCT = 0.02
@@ -115,7 +115,7 @@ for i in range(NUM_ACCOUNTS):
     lat, lon = POSTCODE_COORDS.get(prefix, FALLBACK_COORDS)
     lat += random.uniform(-0.01, 0.01)
     lon += random.uniform(-0.01, 0.01)
-    property_rows.append((f"BG-{i:07d}", postcode, region, prop_type, ctb, floor_area, epc, round(lat, 6), round(lon, 6), BUSINESS_UNIT))
+    property_rows.append((f"UKI-{i:07d}", postcode, region, prop_type, ctb, floor_area, epc, round(lat, 6), round(lon, 6), BUSINESS_UNIT))
 
 df_properties = spark.createDataFrame(
     property_rows,
@@ -133,7 +133,7 @@ print(f"property_reference: {df_properties.count():,} rows → {VOLUME_PATH}/pro
 
 meter_rows = []
 for i in range(NUM_ACCOUNTS):
-    aid = f"BG-{i:07d}"
+    aid = f"UKI-{i:07d}"
     for j, fuel in enumerate(["electricity", "gas"]):
         meter_rows.append((
             f"MTR-{i:07d}-{j}",
@@ -176,8 +176,8 @@ np.random.seed(42)
 num_tampered = int(NUM_ACCOUNTS * TAMPERED_PCT)
 num_edge = int(NUM_ACCOUNTS * EDGE_CASE_PCT)
 
-tampered_ids = set(f"BG-{i:07d}" for i in random.sample(range(NUM_ACCOUNTS), num_tampered))
-edge_ids = set(f"BG-{i:07d}" for i in random.sample(range(NUM_ACCOUNTS), num_edge)) - tampered_ids
+tampered_ids = set(f"UKI-{i:07d}" for i in random.sample(range(NUM_ACCOUNTS), num_tampered))
+edge_ids = set(f"UKI-{i:07d}" for i in random.sample(range(NUM_ACCOUNTS), num_edge)) - tampered_ids
 
 tamper_types = {}
 recent_tamper_ids = set()
@@ -204,7 +204,7 @@ for batch_start in range(0, NUM_ACCOUNTS, BATCH_SIZE):
     batch_reads = []
 
     for i in range(batch_start, batch_end):
-        aid = f"BG-{i:07d}"
+        aid = f"UKI-{i:07d}"
         postcode, region, prop_type, ctb = prop_lookup[aid]
         is_tampered = aid in tampered_ids
         is_edge = aid in edge_ids
@@ -289,7 +289,7 @@ print(f"smart_meter_reads: {read_count:,} rows → {VOLUME_PATH}/smart_meter_rea
 
 gt_rows = []
 for i in range(NUM_ACCOUNTS):
-    aid = f"BG-{i:07d}"
+    aid = f"UKI-{i:07d}"
     if aid in tampered_ids:
         gt_rows.append((aid, True, tamper_types[aid], BUSINESS_UNIT))
     elif aid in edge_ids:
@@ -331,21 +331,21 @@ base_ts = datetime(2026, 2, 15, 10, 0, 0)
 
 error_reads = [
     # Negative consumption (4 records) — triggers: positive_consumption
-    ("BG-0001990", base_ts,                          "electricity", -0.50, "actual", False, "E1 4PA", "flat",           "C", BUSINESS_UNIT),
-    ("BG-0001991", base_ts + timedelta(hours=1),     "gas",         -1.20, "actual", False, "M1 3AB", "terraced",      "B", BUSINESS_UNIT),
-    ("BG-0001992", base_ts + timedelta(hours=2),     "electricity", -0.80, "actual", False, "LS1 5DL","semi-detached", "D", BUSINESS_UNIT),
-    ("BG-0001993", base_ts + timedelta(hours=3),     "gas",         -2.30, "actual", False, "BS1 2HR","detached",      "E", BUSINESS_UNIT),
+    ("UKI-0001990", base_ts,                          "electricity", -0.50, "actual", False, "E1 4PA", "flat",           "C", BUSINESS_UNIT),
+    ("UKI-0001991", base_ts + timedelta(hours=1),     "gas",         -1.20, "actual", False, "M1 3AB", "terraced",      "B", BUSINESS_UNIT),
+    ("UKI-0001992", base_ts + timedelta(hours=2),     "electricity", -0.80, "actual", False, "LS1 5DL","semi-detached", "D", BUSINESS_UNIT),
+    ("UKI-0001993", base_ts + timedelta(hours=3),     "gas",         -2.30, "actual", False, "BS1 2HR","detached",      "E", BUSINESS_UNIT),
     # Future-dated reads (4 records) — triggers: valid_read_timestamp
-    ("BG-0001994", now + timedelta(days=30),         "electricity",  0.85, "actual", False, "N1 7GU", "flat",           "C", BUSINESS_UNIT),
-    ("BG-0001995", now + timedelta(days=60),         "gas",          0.42, "actual", False, "SE1 1JA","terraced",      "B", BUSINESS_UNIT),
-    ("BG-0001996", now + timedelta(days=90),         "electricity",  1.10, "actual", False, "W1 2PF", "detached",      "F", BUSINESS_UNIT),
-    ("BG-0001997", now + timedelta(days=180),        "gas",          0.65, "actual", False, "CB1 3JS","semi-detached", "D", BUSINESS_UNIT),
+    ("UKI-0001994", now + timedelta(days=30),         "electricity",  0.85, "actual", False, "N1 7GU", "flat",           "C", BUSINESS_UNIT),
+    ("UKI-0001995", now + timedelta(days=60),         "gas",          0.42, "actual", False, "SE1 1JA","terraced",      "B", BUSINESS_UNIT),
+    ("UKI-0001996", now + timedelta(days=90),         "electricity",  1.10, "actual", False, "W1 2PF", "detached",      "F", BUSINESS_UNIT),
+    ("UKI-0001997", now + timedelta(days=180),        "gas",          0.65, "actual", False, "CB1 3JS","semi-detached", "D", BUSINESS_UNIT),
     # Invalid fuel type (2 records) — triggers: valid_fuel_type
-    ("BG-0001990", base_ts + timedelta(hours=4),     "solar",        0.90, "actual", False, "E1 4PA", "flat",           "C", BUSINESS_UNIT),
-    ("BG-0001991", base_ts + timedelta(hours=5),     "hydrogen",     0.55, "actual", False, "M1 3AB", "terraced",      "B", BUSINESS_UNIT),
+    ("UKI-0001990", base_ts + timedelta(hours=4),     "solar",        0.90, "actual", False, "E1 4PA", "flat",           "C", BUSINESS_UNIT),
+    ("UKI-0001991", base_ts + timedelta(hours=5),     "hydrogen",     0.55, "actual", False, "M1 3AB", "terraced",      "B", BUSINESS_UNIT),
     # Null business unit (2 records) — triggers: has_business_unit in gold
-    ("BG-0001992", base_ts + timedelta(hours=6),     "electricity",  0.70, "actual", False, "LS1 5DL","semi-detached", "D", None),
-    ("BG-0001993", base_ts + timedelta(hours=7),     "gas",          0.45, "actual", False, "BS1 2HR","detached",      "E", None),
+    ("UKI-0001992", base_ts + timedelta(hours=6),     "electricity",  0.70, "actual", False, "LS1 5DL","semi-detached", "D", None),
+    ("UKI-0001993", base_ts + timedelta(hours=7),     "gas",          0.45, "actual", False, "BS1 2HR","detached",      "E", None),
 ]
 
 df_error_reads = spark.createDataFrame(
@@ -357,13 +357,13 @@ print(f"Appended {len(error_reads)} error records to smart_meter_reads")
 
 error_properties = [
     # Invalid postcode format (3 records) — triggers: valid_uk_postcode
-    ("BG-ERR-0001", "INVALID",  "London",    "flat",      "C", 65.0, "D", 51.51, -0.08, BUSINESS_UNIT),
-    ("BG-ERR-0002", "123",      "Scotland",  "terraced",  "B", 80.0, "C", 55.95, -3.19, BUSINESS_UNIT),
-    ("BG-ERR-0003", "XX 00Z",   "Wales",     "detached",  "E", 95.0, "E", 51.48, -3.18, BUSINESS_UNIT),
+    ("UKI-ERR-0001", "INVALID",  "London",    "flat",      "C", 65.0, "D", 51.51, -0.08, BUSINESS_UNIT),
+    ("UKI-ERR-0002", "123",      "Scotland",  "terraced",  "B", 80.0, "C", 55.95, -3.19, BUSINESS_UNIT),
+    ("UKI-ERR-0003", "XX 00Z",   "Wales",     "detached",  "E", 95.0, "E", 51.48, -3.18, BUSINESS_UNIT),
     # Unknown region (3 records) — triggers: known_region
-    ("BG-ERR-0004", "SW1 1AA",  "Atlantis",  "flat",      "D", 70.0, "C", 51.50, -0.14, BUSINESS_UNIT),
-    ("BG-ERR-0005", "NE1 2BN",  "Narnia",    "terraced",  "B", 85.0, "D", 54.97, -1.61, BUSINESS_UNIT),
-    ("BG-ERR-0006", "GU1 3EH",  "Channel Islands", "semi-detached", "C", 78.0, "C", 49.45, -2.54, BUSINESS_UNIT),
+    ("UKI-ERR-0004", "SW1 1AA",  "Atlantis",  "flat",      "D", 70.0, "C", 51.50, -0.14, BUSINESS_UNIT),
+    ("UKI-ERR-0005", "NE1 2BN",  "Narnia",    "terraced",  "B", 85.0, "D", 54.97, -1.61, BUSINESS_UNIT),
+    ("UKI-ERR-0006", "GU1 3EH",  "Channel Islands", "semi-detached", "C", 78.0, "C", 49.45, -2.54, BUSINESS_UNIT),
 ]
 
 df_error_props = spark.createDataFrame(

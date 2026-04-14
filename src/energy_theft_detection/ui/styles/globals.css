@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * British Gas / Centrica Brand Theme
+ * UKI Gas / UKI Energy Brand Theme
  * 
  * Colors from Nucleus Design System (britishgas.design):
  *   Navy (primary):  #002F87
@@ -37,7 +37,7 @@
   --input: oklch(0.91 0.004 240);
   --ring: oklch(0.62 0.19 245);
 
-  /* Charts: British Gas branded palette */
+  /* Charts: UKI Gas branded palette */
   --chart-1: oklch(0.28 0.10 260);
   --chart-2: oklch(0.62 0.19 245);
   --chart-3: oklch(0.72 0.20 135);
@@ -134,7 +134,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* British Gas brand color utilities (Nucleus Design System) */
+  /* UKI Gas brand color utilities */
   --color-bg-navy: oklch(0.28 0.10 260);
   --color-bg-cyan: oklch(0.62 0.19 245);
   --color-bg-lime: oklch(0.72 0.20 135);

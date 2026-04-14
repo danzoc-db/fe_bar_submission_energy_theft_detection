@@ -1,7 +1,7 @@
 # Genie Code Prompt — Bord Gáis Energy Bronze Ingest
 
 Paste the following prompt into a Databricks notebook in **Genie Code Agent mode** to
-generate a bronze ingest notebook for Bord Gáis Energy (Centrica's Irish retail brand).
+generate a bronze ingest notebook for Bord Gáis Energy (UKI Energy's Irish retail brand).
 
 ---
 
@@ -14,7 +14,7 @@ the `energy_theft_protection` schema. Do NOT overwrite — use mode("append").
 
 ### Context
 
-The schema already contains British Gas data with `business_unit = 'british_gas'`.
+The schema already contains UKI Gas data with `business_unit = 'uki_gas'`.
 This notebook adds Irish data with `business_unit = 'bord_gais'`.
 
 ### Parameters
@@ -57,7 +57,7 @@ with open("../docs/bord_gais_source_data.json") as f:
 ### Tamper patterns
 
 Use the same three tamper types (A: sudden drop, B: gradual decline, C: intermittent)
-with the same parameter ranges as the British Gas notebook.
+with the same parameter ranges as the UKI Gas notebook.
 
 ### Important
 

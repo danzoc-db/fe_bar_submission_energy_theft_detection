@@ -89,7 +89,7 @@ resources:
   apps:
     energy-theft-detection-app:
       name: "energy-theft-detection"
-      description: "British Gas Energy Theft Detection — AI-driven anomaly detection demo"
+      description: "UKI Gas Energy Theft Detection — AI-driven anomaly detection demo"
       source_code_path: ./.build
       permissions:
         - group_name: "users"
@@ -313,12 +313,12 @@ targets:
                 permission: "CAN_RUN"
   azsu:
     workspace:
-      profile: azsu-centrica-demo
+      profile: azsu-demo
     artifacts:
       default:
-        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py azsu_centrica_demo && python3 scripts/verify_app_permissions.py --profile azsu-centrica-demo --catalog azsu_centrica_demo --fix"
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py azsu_uki_demo && python3 scripts/verify_app_permissions.py --profile azsu-demo --catalog azsu_uki_demo --fix"
     variables:
-      catalog: "azsu_centrica_demo"
+      catalog: "azsu_uki_demo"
       sql_warehouse_id: "16de76f2a615a8aa"
       genie_space_id: "01f137845bff15e1a08bb2ee463075b5"
     resources:

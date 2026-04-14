@@ -22,7 +22,7 @@ print(f"Schema:  {SCHEMA}")
 
 # COMMAND ----------
 
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA} COMMENT 'British Gas Energy Theft Detection — ML-powered anomaly detection.'")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA} COMMENT 'UKI Gas Energy Theft Detection — ML-powered anomaly detection.'")
 spark.sql(f"USE CATALOG {CATALOG}")
 spark.sql(f"USE SCHEMA {SCHEMA}")
 

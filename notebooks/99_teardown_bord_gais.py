@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # Bord Gáis Energy — Teardown
 # MAGIC
-# MAGIC Removes all Bord Gáis Energy data from the schema, leaving British Gas intact.
+# MAGIC Removes all Bord Gáis Energy data from the schema, leaving UKI Gas intact.
 # MAGIC Run after the demo to clean up.
 
 # COMMAND ----------
@@ -69,4 +69,4 @@ for table in tables + ["gold_daily_consumption", "gold_account_features"]:
     total = spark.sql(f"SELECT COUNT(*) AS c FROM {table}").collect()[0]["c"]
     print(f"  {table}: {total:,} rows, units={units}, bord_gais={bge_count}")
 
-print("\nTeardown complete. Only british_gas data remains.")
+print("\nTeardown complete. Only uki_gas data remains.")

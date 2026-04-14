@@ -106,7 +106,7 @@ COLUMN_METADATA = [
     ("investigation_cases", "case_id",               "Unique investigation case reference",                                          None,             None),
     ("investigation_cases", "account_id",            "Links investigation to customer account",                                      "PII",            "Links investigation to customer"),
     ("investigation_cases", "opened_timestamp",      "Timestamp when the investigation was opened",                                  None,             None),
-    ("investigation_cases", "investigator_id",       "Assigned investigator employee ID",                                            "PII (staff)",    "Identifies British Gas employee"),
+    ("investigation_cases", "investigator_id",       "Assigned investigator employee ID",                                            "PII (staff)",    "Identifies UKI Gas employee"),
     ("investigation_cases", "llm_summary",           "LLM-generated case summary — may contain account-linked PII from prompt",     "PII (derived)",  "LLM output may contain account-linked PII from prompt context"),
     ("investigation_cases", "field_dispatch_doc",    "LLM-generated field dispatch document",                                       "PII (derived)",  "LLM output may reference account details"),
     ("investigation_cases", "outcome",               "Investigation outcome: THEFT_CONFIRMED, FALSE_POSITIVE, or PENDING",          None,             None),

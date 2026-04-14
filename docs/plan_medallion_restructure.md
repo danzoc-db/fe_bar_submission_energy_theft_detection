@@ -35,7 +35,7 @@ Job 2 runs after Job 1. Notebooks 02-04 updated to read from gold tables.
 
 ### Why Bord Gáis
 
-- Centrica's Irish retail brand, 514K+ customers, €72.5M operating profit (2025)
+- UKI Energy's Irish retail brand, 514K+ customers, €72.5M operating profit (2025)
 - ~1,500 suspected meter tampering cases/year in Ireland (ESB Networks)
 - ~3,000 gas meter cases since 2013 (Gas Networks Ireland)
 - Regulated by CRU (not Ofgem), MPRN (not MPAN), Eircode (not UK postcode), BER (not EPC)

@@ -1,4 +1,4 @@
-# AI-Driven Energy Theft Detection for British Gas
+# AI-Driven Energy Theft Detection for UKI Gas
 ## Product Requirements Document
 
 **Version:** 1.0
@@ -23,13 +23,13 @@ approximately once every ten days.
 | Annual value stolen across Great Britain | **£830m–£1.4bn/year** | RECCo / Capgemini Theft Estimation, Jan 2023; RECCo press release |
 | Added to every honest household's bill | **£29–48/year** | Ofgem TDIS Authority Decision, May 2025 |
 | Deaths from tampered supplies | **~1 every 10 days (~36/year)** | Ofgem, BBC investigations |
-| British Gas estimated theft exposure | **~£323m/year** | Derived: £1.4bn × BG 23.1% market share (Ofgem, Jan 2025) |
+| UKI Gas estimated theft exposure | **~£323m/year** | Derived: £1.4bn × BG 23.1% market share (Ofgem, Jan 2025) |
 | ML-recoverable value (30% benchmark) | **~£97m/year** | Industry benchmark; Enel achieved 70–300% improvement per inspection |
-| British Gas Home Energy divisional profit (2025) | **£163m** | Centrica Preliminary Results, Feb 2026 |
+| UKI Gas Home Energy divisional profit (2025) | **£163m** | UKI Energy Preliminary Results, Feb 2026 |
 | BG theft exposure as % of divisional AOP | **~198%** | £323m exposure vs £163m AOP |
 | UK suppliers' theft detection rate vs target | **~40%** | 16,581 confirmed vs 41,000 target (Ofgem, 2022/23) |
 
-**The anchor stat:** British Gas's estimated theft exposure (~£323m) exceeds its entire
+**The anchor stat:** UKI Gas's estimated theft exposure (~£323m) exceeds its entire
 Home Energy divisional operating profit (£163m) by nearly 2x. Even a conservative
 ML-assisted recovery programme recovering 30% of that exposure would yield ~£97m —
 equivalent to 59% of the division's profit. Early, accurate detection of meter anomalies
@@ -69,11 +69,11 @@ Every page, KPI tile, chart, and AI interaction maps back to one of these two pe
 The app navigation follows Susie's world first, then Robbie's world, then governance.
 
 ### Susie Chambers
-**Head of Revenue Protection & Financial Crime, British Gas Home Energy**
-*Centrica plc | Director-level, reporting to Chief Customer Officer*
+**Head of Revenue Protection & Financial Crime, UKI Gas Home Energy**
+*UKI Energy plc | Director-level, reporting to Chief Customer Officer*
 
 Susie owns the Revenue Protection function as a P&L-accountable director. She presents
-to the British Gas Home Energy CFO quarterly on theft exposure and recovery, and to the
+to the UKI Gas Home Energy CFO quarterly on theft exposure and recovery, and to the
 Group Risk Committee annually. She manages Robbie's team, field engineering capacity,
 and regulatory compliance obligations under the ETU. She does not write SQL. She opens
 dashboards and asks questions in plain English.
@@ -98,9 +98,9 @@ track? Where are the geographic hotspots? Is the model improving?
 
 ### Robbie Henderson
 **Senior Revenue Protection Analyst — Theft Detection**
-*British Gas Home Energy Supply | Revenue Protection Team*
+*UKI Gas Home Energy Supply | Revenue Protection Team*
 
-Robbie is a mid-career data analyst embedded in British Gas's Revenue Protection team.
+Robbie is a mid-career data analyst embedded in UKI Gas's Revenue Protection team.
 His job is to take anomaly signals from the ML platform and turn them into confirmed
 theft cases: reviewing flagged accounts, dispatching field engineers, and closing cases.
 He is comfortable with data tools but is not a data scientist — he relies on the
@@ -145,7 +145,7 @@ summaries, signal narratives, and field dispatch documents. The LLM collapses a
 **Governance:** Unity Catalog — single plane for data, models, LLMs, Genie, and PII
 
 **The Hero Message:** *"£1.4 billion is stolen from UK energy suppliers every year.
-40% goes undetected. How might British Gas turn £323M of loss exposure into
+40% goes undetected. How might UKI Gas turn £323M of loss exposure into
 recovered revenue, faster, with Data & AI?"*
 
 The headline builds from defensible public data (£1.4bn RECCo, 40% Ofgem) to the
@@ -279,7 +279,7 @@ fields, with visible PII badges.
 | `anomaly_scores` | `account_id` | PII | Links scored risk to domestic customer |
 | `anomaly_scores` | `postcode_sector` | PII | Identifies area of premises |
 | `investigation_cases` | `account_id` | PII | Links investigation to customer |
-| `investigation_cases` | `investigator_id` | PII (staff) | Identifies British Gas employee |
+| `investigation_cases` | `investigator_id` | PII (staff) | Identifies UKI Gas employee |
 | `investigation_cases` | `llm_summary` | PII (derived) | LLM output may contain account-linked PII from prompt context |
 
 **Non-PII fields:** `composite_risk_score`, `risk_tier`, `fuel_type`, `model_version`,
@@ -491,7 +491,7 @@ Pre-loaded example prompts visible.
 
 ```
 Prompt:
-"You are an energy theft investigation assistant for British Gas.
+"You are an energy theft investigation assistant for UKI Gas.
 Given the following account anomaly data, generate a structured investigation
 summary: risk assessment, key signals, recommended action, and priority.
 
@@ -552,7 +552,7 @@ Nine-slide in-app deck with scrollable + slide view toggle. Content structure:
 ### 8.6 Design Patterns
 
 **Source-annotated metrics:** Every financial figure has a tooltip citing its source
-(RECCo, Centrica Results, Ofgem, or "Derived"). The £323M tooltip includes the
+(RECCo, UKI Energy Results, Ofgem, or "Derived"). The £323M tooltip includes the
 caveat that it is "an estimate embedded in receivables and bad debt provisions —
 directionally correct for executive conversation."
 
@@ -595,8 +595,8 @@ To be designed in Plan Mode during Phase 2. Test categories:
 | £29–48/year per household | Ofgem TDIS Authority Decision, May 2025 | Yes |
 | ~1 death every 10 days | Ofgem; BBC; The Times investigation | Yes |
 | ETU approved (R0233) | Ofgem R0233, June 2025 | Yes |
-| British Gas 7.5M customers | Centrica 2025 Preliminary Results, Feb 2026 | Yes |
-| BG Home Energy AOP: £163m | Centrica 2025 Preliminary Results, Feb 2026 | Yes |
+| UKI Gas 7.5M customers | UKI Energy 2025 Preliminary Results, Feb 2026 | Yes |
+| BG Home Energy AOP: £163m | UKI Energy 2025 Preliminary Results, Feb 2026 | Yes |
 | BG market share: 23.1% | Ofgem retail market indicators, Jan 2025 | Yes |
 | 370% increase in metering interference | Ofgem TDIS Authority Decision, May 2025 | Yes |
 | UK suppliers at 40% of theft target | 16,581 confirmed vs 41,000 target (Ofgem 2022/23) | Yes |
@@ -609,5 +609,5 @@ To be designed in Plan Mode during Phase 2. Test categories:
 
 ---
 
-*All financial figures for British Gas theft exposure are estimates derived from public
+*All financial figures for UKI Gas theft exposure are estimates derived from public
 sources. Demo data is clearly labelled as simulated throughout the application.*

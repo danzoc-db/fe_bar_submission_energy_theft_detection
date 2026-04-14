@@ -8,7 +8,7 @@ Features deferred from the current sprint. Ordered by estimated demo impact.
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 1 | Landing Page — hero, sourced metrics, architecture diagram, persona cards | **Done** | Dark hero, £323M/£163M/£6.2M/£97M with source tooltips, Centrica Group scale row, horizontal E2E architecture with tooltips, "Meet the Team" cards |
+| 1 | Landing Page — hero, sourced metrics, architecture diagram, persona cards | **Done** | Dark hero, £323M/£163M/£6.2M/£97M with source tooltips, UKI Energy Group scale row, horizontal E2E architecture with tooltips, "Meet the Team" cards |
 | 2 | Executive Dashboard (`/dashboard`) — Susie's View | **Done** | 5 KPI tiles (exposure, AOP%, YTD recovery, recovery rate, detection precision), Revenue Recovery Opportunity donut, Investigation Outcomes bar+line chart, Case Pipeline row, embedded Genie chat with UC Metric View highlighting |
 | 3 | Investigation Workbench (`/investigation`) — Robbie's View | **Done** | 5 operational KPI tiles with click-to-filter, AI Daily Briefing (Bedrock), flagged accounts table with risk/status filtering, account detail drawer (composite score, signal breakdown, LLM case summary, 90-day consumption chart, field dispatch generator with PDF download) |
 | 4 | AI Governance (`/governance`) | **Done** | AI Component Registry, PII Access Matrix (red/amber/green badges), UC Lineage DAG (interactive Plotly network graph), AI Gateway Audit log, column-level metadata |

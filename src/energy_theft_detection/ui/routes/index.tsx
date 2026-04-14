@@ -70,12 +70,12 @@ const METRICS: readonly { value: string; label: string; source: React.ReactNode 
     value: "£323M/yr",
     label: "Energy theft exposure",
     source:
-      "RECCo (Retail Energy Code Company — the industry body that administers the Retail Energy Code for GB) commissioned Capgemini to produce the Theft Estimation Methodology (Jan 2023). Estimated: up to 1,069 GWh gas + 2,837 GWh electricity stolen/year = up to £1.4bn at Ofgem Default Tariff Cap prices. BG share: 23.1% domestic market share (Cornwall Insights / Ofgem, Jan 2025) × £1.4bn = £323M. Includes both detected and unrecovered theft — detection ≠ recovery.",
+      "RECCo (Retail Energy Code Company — the industry body that administers the Retail Energy Code for GB) commissioned Capgemini to produce the Theft Estimation Methodology (Jan 2023). Estimated: up to 1,069 GWh gas + 2,837 GWh electricity stolen/year = up to £1.4bn at Ofgem Default Tariff Cap prices. UKI Gas share: 23.1% domestic market share × £1.4bn = £323M. Includes both detected and unrecovered theft — detection ≠ recovery.",
   },
   {
     value: "£163M",
     label: "Divisional profit",
-    source: "British Gas Home Energy divisional operating profit FY2025 (down 39% YoY) — Centrica Preliminary Results, Feb 2026.",
+    source: "UKI Gas Home Energy divisional operating profit FY2025 (down 39% YoY) — UKI Energy Preliminary Results, Feb 2026.",
   },
   {
     value: "£6.2M/wk",
@@ -87,7 +87,7 @@ const METRICS: readonly { value: string; label: string; source: React.ReactNode 
     label: "ML-recoverable",
     source: (
       <>
-        30% ML-assisted recovery rate × £323M exposure = £97M — equivalent to 59% of BG divisional profit. Conservative benchmark: Rome-based{" "}
+        30% ML-assisted recovery rate × £323M exposure = £97M — equivalent to 59% of UKI Gas divisional profit. Conservative benchmark: Rome-based{" "}
         <a href={ENEL_CASE_STUDY_URL} target="_blank" rel="noopener noreferrer" className="underline font-bold text-white hover:text-white/80">
           Enel, the world's largest utility, achieved 70–300% improvement in recovery per inspection across 20M+ smart meters in Italy and Spain
         </a>.
@@ -96,16 +96,16 @@ const METRICS: readonly { value: string; label: string; source: React.ReactNode 
   },
 ];
 
-const CENTRICA_METRICS = [
+const GROUP_METRICS = [
   {
     value: "£814M",
     label: "Group adj. operating profit",
-    source: "Centrica plc Group adjusted operating profit FY2025 (down from £1.55bn in FY2024) — Centrica Preliminary Results, Feb 2026. Includes upstream energy, Centrica Business Solutions, British Gas, and Bord Gáis Energy.",
+    source: "UKI Energy Group adjusted operating profit FY2025 (down from £1.55bn in FY2024) — UKI Energy Preliminary Results, Feb 2026. Includes upstream energy, business solutions, UKI Gas, and international divisions.",
   },
   {
     value: "40%",
     label: "of Group profit in exposure",
-    source: "£323M BG theft exposure ÷ £814M Group adj. operating profit = 40%. This is scale context, not a direct P&L line: theft losses are partially socialised via bad-debt provisions and network charging, and recovery rates are typically ~40%. The figure shows the magnitude of the problem relative to Group earnings, not a pound-for-pound profit drag.",
+    source: "£323M UKI Gas theft exposure ÷ £814M Group adj. operating profit = 40%. This is scale context, not a direct P&L line: theft losses are partially socialised via bad-debt provisions and network charging, and recovery rates are typically ~40%. The figure shows the magnitude of the problem relative to Group earnings, not a pound-for-pound profit drag.",
   },
   {
     value: "70–300%",
@@ -115,7 +115,7 @@ const CENTRICA_METRICS = [
   {
     value: "12%",
     label: "Group profit recoverable",
-    source: "£97M ML-recoverable (30% of £323M BG exposure) ÷ £814M Group adj. operating profit = 12%. Recovering theft losses from one division alone would materially move Group-level earnings.",
+    source: "£97M ML-recoverable (30% of £323M UKI Gas exposure) ÷ £814M Group adj. operating profit = 12%. Recovering theft losses from one division alone would materially move Group-level earnings.",
   },
 ] as const;
 
@@ -164,13 +164,13 @@ function Index() {
         {/* Nav bar */}
         <nav className="flex items-center justify-between px-8 py-4">
           <div className="flex items-center gap-3">
-            <img src="/bg-icon.svg" alt="British Gas" className="h-8 w-auto" />
+            <img src="/bg-icon.svg" alt="UKI Gas" className="h-8 w-auto" />
             <span className="font-semibold text-sm tracking-tight text-muted-foreground">
               Revenue Protection
             </span>
           </div>
           <span className="text-xs text-muted-foreground">
-            March 2026 — Centrica / British Gas
+            March 2026 — UKI Energy / UKI Gas
           </span>
         </nav>
 
@@ -178,7 +178,7 @@ function Index() {
         <main className="flex flex-col items-center px-8 pt-6 pb-4">
           <div className="max-w-4xl space-y-6 text-center">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent">
-              Databricks x British Gas
+              Databricks x UKI Gas
             </span>
 
             <div className="space-y-3">
@@ -201,7 +201,7 @@ function Index() {
         <section className="px-8 pt-0 pb-4">
           <div className="max-w-4xl mx-auto space-y-4">
             <h2 className="text-center text-lg font-semibold text-muted-foreground uppercase tracking-widest">
-              The Exposure — British Gas
+              The Exposure — UKI Gas
             </h2>
             <div className="grid grid-cols-4 gap-4">
               {METRICS.map((m) => (
@@ -227,13 +227,13 @@ function Index() {
               ))}
             </div>
 
-            {/* Centrica-wide scale */}
+            {/* Group-wide scale */}
             <div className="pt-1 space-y-2">
               <p className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-                Centrica Group Impact
+                UKI Energy Group Impact
               </p>
               <div className="grid grid-cols-4 gap-3">
-                {CENTRICA_METRICS.map((m) => (
+                {GROUP_METRICS.map((m) => (
                   <div
                     key={m.label}
                     className="relative rounded-lg border border-dashed bg-muted/30 px-4 py-3 text-center group hover:border-accent/40 transition-colors"
@@ -254,7 +254,7 @@ function Index() {
                 ))}
               </div>
               <p className="text-center text-[11px] text-muted-foreground/50 italic">
-                BG residential is 23.1% of GB domestic energy supply (Ofgem/Cornwall Insights, Jan 2025) — all figures sourced from public filings and RECCo
+                UKI Gas residential is 23.1% of GB domestic energy supply — all figures sourced from public filings and RECCo
               </p>
             </div>
 
@@ -286,7 +286,7 @@ function Index() {
             {/* How might we — below the pills */}
             <div className="space-y-3 pt-2">
               <p className="text-xl md:text-2xl font-medium max-w-3xl mx-auto leading-relaxed text-foreground text-center">
-                How might British Gas turn{" "}
+                How might UKI Gas turn{" "}
                 <span className="text-accent font-bold">£323M</span> of loss exposure into
                 recovered revenue, faster, with Data & AI?
               </p>
@@ -724,7 +724,7 @@ function Index() {
 
         {/* Footer */}
         <footer className="text-center text-xs text-muted-foreground/50 pb-6">
-          Databricks &times; British Gas Revenue Protection
+          Databricks &times; UKI Gas Revenue Protection
         </footer>
       </div>
     </TooltipProvider>
