@@ -35,7 +35,7 @@ import {
   Globe,
   ExternalLink,
 } from "lucide-react";
-import { BedrockBadge } from "@/components/bedrock-badge";
+import { ModelBadge } from "@/components/model-badge";
 import { GeminiBadge, GOOGLE_BLUE } from "@/components/gemini-badge";
 import {
   UnderTheHood,
@@ -310,7 +310,7 @@ function BoardReportPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <GeminiBadge />
-                    <BedrockBadge />
+                    <ModelBadge />
                   </div>
                 </div>
               </CardHeader>

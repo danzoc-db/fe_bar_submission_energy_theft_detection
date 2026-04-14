@@ -29,7 +29,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BedrockBadge } from "@/components/bedrock-badge";
+import { ModelBadge } from "@/components/model-badge";
 import {
   Activity,
   Coins,
@@ -1041,7 +1041,7 @@ function AuditPanel() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>AI Gateway Audit Trail</CardTitle>
-            <BedrockBadge showModel />
+            <ModelBadge showModel />
           </div>
           <p className="text-sm text-muted-foreground">
             LLM calls from <code className="text-xs bg-muted px-1 py-0.5 rounded">system.serving.endpoint_usage</code> —
