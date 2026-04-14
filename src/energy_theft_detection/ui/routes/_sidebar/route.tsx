@@ -2,6 +2,7 @@ import SidebarLayout from "@/components/apx/sidebar-layout";
 import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useGetReadiness } from "@/lib/api";
+import { useDemoSettings } from "@/lib/demo-settings";
 import {
   LayoutDashboard,
   Search,
@@ -9,6 +10,7 @@ import {
   Presentation,
   Home,
   Bot,
+  Swords,
 } from "lucide-react";
 import {
   SidebarGroup,
@@ -26,6 +28,7 @@ export const Route = createFileRoute("/_sidebar")({
 function Layout() {
   const location = useLocation();
   useGetReadiness({ query: { staleTime: 60_000 } });
+  const { competeEnabled } = useDemoSettings();
 
   const navItems = [
     {
@@ -56,6 +59,17 @@ function Layout() {
       match: (path: string) => path === "/board-report",
       group: "Platform",
     },
+    ...(competeEnabled
+      ? [
+          {
+            to: "/why-databricks" as const,
+            label: "Why Databricks",
+            icon: <Swords size={16} />,
+            match: (path: string) => path === "/why-databricks",
+            group: "Platform",
+          },
+        ]
+      : []),
     {
       to: "/presentation",
       label: "Presentation",

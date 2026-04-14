@@ -6,6 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useDemoSettings } from "@/lib/demo-settings";
 
 const DB_ORANGE = "#FF3621";
 
@@ -178,6 +179,9 @@ export function FabricCallout({
   children: ReactNode;
   category?: "Cost" | "Speed" | "Governance";
 }) {
+  const { competeEnabled } = useDemoSettings();
+  if (!competeEnabled) return null;
+
   return (
     <div className="rounded-lg border border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30 p-2.5 space-y-1">
       <div className="flex items-center gap-2">

@@ -28,6 +28,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { ArchitectureDiagram } from "@/components/architecture-diagram";
+import { useDemoSettings, MODEL_CONFIGS, type ModelKey } from "@/lib/demo-settings";
 import {
   healthCheck,
   healthCheckKey,
@@ -146,6 +147,7 @@ function usePrefetchAll() {
 
 function Index() {
   usePrefetchAll();
+  const { competeEnabled, setCompeteEnabled, modelKey, setModelKey, modelConfig } = useDemoSettings();
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [archOpen, setArchOpen] = useState(false);
 
@@ -693,9 +695,9 @@ function Index() {
         </section>
 
         {/* Quick links */}
-        <section className="px-8 py-8 pb-16">
+        <section className="px-8 py-8 pb-8">
           <div className="max-w-4xl mx-auto">
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid ${competeEnabled ? "grid-cols-2" : "grid-cols-1 max-w-md mx-auto"} gap-3`}>
               <Link
                 to="/governance"
                 className="group flex items-center gap-3 p-4 rounded-lg border bg-card hover:border-accent/40 transition-colors"
@@ -707,17 +709,75 @@ function Index() {
                 </div>
                 <ArrowRight className="h-4 w-4 ml-auto opacity-0 group-hover:opacity-70 transition-opacity" />
               </Link>
-              <Link
-                to="/why-databricks"
-                className="group flex items-center gap-3 p-4 rounded-lg border bg-card hover:border-accent/40 transition-colors"
-              >
-                <LayoutDashboard className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
-                <div>
-                  <p className="text-sm font-medium">Why Databricks</p>
-                  <p className="text-xs text-muted-foreground">Platform advisory context</p>
+              {competeEnabled && (
+                <Link
+                  to="/why-databricks"
+                  className="group flex items-center gap-3 p-4 rounded-lg border bg-card hover:border-accent/40 transition-colors"
+                >
+                  <LayoutDashboard className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
+                  <div>
+                    <p className="text-sm font-medium">Why Databricks</p>
+                    <p className="text-xs text-muted-foreground">Platform advisory context</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 ml-auto opacity-0 group-hover:opacity-70 transition-opacity" />
+                </Link>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Demo Settings */}
+        <section className="px-8 pb-10">
+          <div className="max-w-4xl mx-auto">
+            <div className="rounded-xl border border-dashed border-muted-foreground/20 bg-muted/20 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-3 text-center">
+                Demo Configuration
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-6">
+                {/* Compete toggle */}
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                    Compete Insights
+                  </span>
+                  <button
+                    role="switch"
+                    aria-checked={competeEnabled}
+                    onClick={() => setCompeteEnabled(!competeEnabled)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                      competeEnabled ? "bg-red-500" : "bg-muted-foreground/30"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        competeEnabled ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </label>
+
+                <div className="h-6 w-px bg-muted-foreground/20" />
+
+                {/* Model selector */}
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs text-muted-foreground">
+                    Primary Model
+                  </span>
+                  <select
+                    value={modelKey}
+                    onChange={(e) => setModelKey(e.target.value as ModelKey)}
+                    className="rounded-md border bg-background px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                  >
+                    {Object.values(MODEL_CONFIGS).map((m) => (
+                      <option key={m.key} value={m.key}>
+                        {m.label} — {m.model}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <ArrowRight className="h-4 w-4 ml-auto opacity-0 group-hover:opacity-70 transition-opacity" />
-              </Link>
+              </div>
+              <p className="text-[10px] text-muted-foreground/40 text-center mt-2">
+                {competeEnabled ? "Fabric compete messaging visible on all pages" : "Compete messaging hidden"} · Primary LLM: {modelConfig.provider} ({modelConfig.model})
+              </p>
             </div>
           </div>
         </section>

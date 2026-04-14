@@ -1,4 +1,5 @@
 import { ThemeProvider } from "@/components/apx/theme-provider";
+import { DemoSettingsProvider } from "@/lib/demo-settings";
 import { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
@@ -9,13 +10,15 @@ export const Route = createRootRouteWithContext<{
 }>()({
   component: () => (
     <ThemeProvider defaultTheme="light" storageKey="apx-ui-theme">
-      {import.meta.env.DEV && (
-        <>
-          <TanStackRouterDevtools position="bottom-right" />
-        </>
-      )}
-      <Outlet />
-      <Toaster richColors />
+      <DemoSettingsProvider>
+        {import.meta.env.DEV && (
+          <>
+            <TanStackRouterDevtools position="bottom-right" />
+          </>
+        )}
+        <Outlet />
+        <Toaster richColors />
+      </DemoSettingsProvider>
     </ThemeProvider>
   ),
 });
