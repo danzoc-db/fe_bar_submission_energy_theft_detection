@@ -1582,6 +1582,83 @@ Write 5-7 sentences in plain English. Include the actual numbers. Do not use hea
 
 
 # ---------------------------------------------------------------------------
+# Investigation Close-Out
+# ---------------------------------------------------------------------------
+
+
+from typing import Literal
+
+
+class InvestigationCloseRequest(BaseModel):
+    outcome: Literal["confirmed_theft", "no_theft", "inconclusive"]
+    recovered_amount: float | None = None
+    notes: str | None = None
+
+
+class InvestigationCloseResponse(BaseModel):
+    success: bool
+    account_id: str
+    outcome: str
+    recovered_amount: float | None = None
+
+
+@api.post(
+    "/investigation/{account_id}/close",
+    response_model=InvestigationCloseResponse,
+    operation_id="closeInvestigation",
+)
+async def close_investigation(request: Request, account_id: str, body: InvestigationCloseRequest):
+    """Close an investigation case — writes outcome and recovered amount back to Lakehouse."""
+    db = _sql(request)
+    if not db:
+        raise HTTPException(status_code=503, detail="SQL Warehouse not configured")
+
+    outcome_map = {
+        "confirmed_theft": "THEFT_CONFIRMED",
+        "no_theft": "FALSE_POSITIVE",
+        "inconclusive": "INCONCLUSIVE",
+    }
+    db_outcome = outcome_map.get(body.outcome, "PENDING")
+    recovered = body.recovered_amount if body.outcome == "confirmed_theft" else None
+
+    try:
+        db.execute(f"""
+            UPDATE investigation_cases
+            SET outcome = '{db_outcome}',
+                closed_timestamp = current_timestamp(),
+                revenue_recovered_gbp = {recovered if recovered is not None else 'NULL'}
+            WHERE account_id = '{account_id}'
+              AND (outcome IS NULL OR outcome = 'PENDING')
+        """)
+
+        if db_outcome == "THEFT_CONFIRMED":
+            db.execute(f"""
+                UPDATE anomaly_scores
+                SET investigation_status = 'CONFIRMED_THEFT'
+                WHERE account_id = '{account_id}'
+            """)
+        elif db_outcome in ("FALSE_POSITIVE", "INCONCLUSIVE"):
+            db.execute(f"""
+                UPDATE anomaly_scores
+                SET investigation_status = 'CLOSED'
+                WHERE account_id = '{account_id}'
+            """)
+
+    except Exception as e:
+        logger.error(f"Close investigation failed for {account_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to close investigation: {str(e)[:200]}")
+
+    _cache.clear()
+
+    return InvestigationCloseResponse(
+        success=True,
+        account_id=account_id,
+        outcome=db_outcome,
+        recovered_amount=recovered,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Genie Conversation API (Susie's NL Queries)
 # ---------------------------------------------------------------------------
 
