@@ -1,0 +1,16 @@
+command: ["uvicorn", "energy_theft_detection.backend.app:app", "--workers", "2"]
+env:
+  - name: "SQL_WAREHOUSE_ID"
+    valueFrom: "warehouse"
+  - name: "AI_GATEWAY_ENDPOINT"
+    value: "energy-theft-bedrock-gateway"
+  - name: "GEMINI_GATEWAY_ENDPOINT"
+    value: "energy-theft-gemini-gateway"
+  - name: "GENIE_SPACE_ID"
+    valueFrom: "genie-space"
+  - name: "MAS_ENDPOINT"
+    value: ""  # MAS_ENDPOINT
+  - name: "CATALOG"
+    value: ""  # CATALOG
+  - name: "SCHEMA_NAME"
+    value: "energy_theft_protection"

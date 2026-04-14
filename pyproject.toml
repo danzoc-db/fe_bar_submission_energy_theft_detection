@@ -1,0 +1,69 @@
+[project]
+name = "energy-theft-detection"
+dynamic = ["version"]
+description = "British Gas Energy Theft Detection — AI-driven anomaly detection demo"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.119.0",
+    "pydantic-settings>=2.11.0",
+    "uvicorn>=0.37.0",
+    "databricks-sdk>=0.74.0",
+    "httpx>=0.27",
+    "python-dotenv>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "ty>=0.0.12", "apx==0.2.6",
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+
+[tool.apx.metadata]
+app-name = "energy-theft-detection"
+app-slug = "energy_theft_detection"
+app-entrypoint = "energy_theft_detection.backend.app:app"
+api-prefix = "/api"
+metadata-path = "src/energy_theft_detection/_metadata.py"
+
+[tool.apx.ui]
+root = "src/energy_theft_detection/ui"
+
+[tool.apx.ui.registries]
+"@animate-ui" = "https://animate-ui.com/r/{name}.json"
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning>=0.7.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+fallback-version = "0.0.0"
+
+[tool.uv]
+
+[[tool.uv.index]]
+name = "apx-index"
+url = "https://databricks-solutions.github.io/apx/simple"
+
+[tool.uv.sources]
+
+[tool.uv.sources.apx]
+index = "apx-index"
+
+[tool.hatch.build.hooks.version]
+path = "src/energy_theft_detection/_version.py"
+template = '''
+version = "{version}"
+'''
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/energy_theft_detection"]
+
+[tool.hatch.build]
+artifacts = ["src/energy_theft_detection/__dist__", "src/energy_theft_detection/_metadata.py"]
+exclude = ["src/energy_theft_detection/ui"]

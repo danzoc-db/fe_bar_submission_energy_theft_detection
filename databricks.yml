@@ -1,0 +1,375 @@
+bundle:
+  name: "energy-theft-detection"
+
+sync:
+  include:
+    - .build
+
+artifacts:
+  default:
+    build: uv run apx build
+
+resources:
+  model_serving_endpoints:
+    bedrock_gateway:
+      name: "energy-theft-bedrock-gateway"
+      config:
+        served_entities:
+          - name: "bedrock-claude-sonnet"
+            external_model:
+              name: "${var.bedrock_model_id}"
+              provider: "amazon-bedrock"
+              task: "llm/v1/chat"
+              amazon_bedrock_config:
+                aws_region: "${var.bedrock_aws_region}"
+                aws_access_key_id: "{{secrets/${var.bedrock_secret_scope}/aws-access-key-id}}"
+                aws_secret_access_key: "{{secrets/${var.bedrock_secret_scope}/aws-secret-access-key}}"
+                bedrock_provider: "anthropic"
+      ai_gateway:
+        guardrails:
+          input:
+            safety: true
+            pii:
+              behavior: BLOCK
+          output:
+            safety: true
+            pii:
+              behavior: BLOCK
+        rate_limits:
+          - calls: 30
+            key: endpoint
+            renewal_period: minute
+          - calls: 10
+            key: user
+            renewal_period: minute
+        usage_tracking_config:
+          enabled: true
+        inference_table_config:
+          catalog_name: "${var.catalog}"
+          schema_name: "${var.schema}"
+          enabled: true
+
+    gemini_gateway:
+      name: "energy-theft-gemini-gateway"
+      config:
+        served_entities:
+          - name: "gemini-flash"
+            external_model:
+              name: "${var.gemini_model_id}"
+              provider: "google-cloud-vertex-ai"
+              task: "llm/v1/chat"
+              google_cloud_vertex_ai_config:
+                region: "${var.gemini_region}"
+                project_id: "${var.gemini_project_id}"
+                private_key: "{{secrets/${var.gemini_secret_scope}/private-key}}"
+      ai_gateway:
+        guardrails:
+          input:
+            safety: true
+            pii:
+              behavior: BLOCK
+          output:
+            safety: true
+            pii:
+              behavior: BLOCK
+        rate_limits:
+          - calls: 30
+            key: endpoint
+            renewal_period: minute
+          - calls: 10
+            key: user
+            renewal_period: minute
+        usage_tracking_config:
+          enabled: true
+        inference_table_config:
+          catalog_name: "${var.catalog}"
+          schema_name: "${var.schema}"
+          enabled: true
+
+  apps:
+    energy-theft-detection-app:
+      name: "energy-theft-detection"
+      description: "British Gas Energy Theft Detection — AI-driven anomaly detection demo"
+      source_code_path: ./.build
+      permissions:
+        - group_name: "users"
+          level: "CAN_USE"
+        - user_name: "john.southcombe@databricks.com"
+          level: "CAN_USE"
+      resources:
+        - name: "warehouse"
+          sql_warehouse:
+            id: "${var.sql_warehouse_id}"
+            permission: "CAN_USE"
+        - name: "serving_endpoint"
+          serving_endpoint:
+            name: "energy-theft-bedrock-gateway"
+            permission: "CAN_QUERY"
+        - name: "gemini_endpoint"
+          serving_endpoint:
+            name: "energy-theft-gemini-gateway"
+            permission: "CAN_QUERY"
+
+  pipelines:
+    medallion_pipeline:
+      name: "energy-theft-medallion"
+      catalog: "${var.catalog}"
+      target: "${var.schema}"
+      permissions:
+        - group_name: "users"
+          level: "CAN_VIEW"
+        - user_name: "john.southcombe@databricks.com"
+          level: "CAN_VIEW"
+      libraries:
+        - file:
+            path: "./pipelines/energy_theft_medallion.sql"
+      configuration:
+        catalog: "${var.catalog}"
+        schema: "${var.schema}"
+
+  jobs:
+    end_to_end:
+      name: "energy-theft-end-to-end"
+      permissions:
+        - group_name: "users"
+          level: "CAN_VIEW"
+        - user_name: "john.southcombe@databricks.com"
+          level: "CAN_VIEW"
+      tasks:
+        - task_key: "create_schema"
+          notebook_task:
+            notebook_path: "./notebooks/00_create_schema.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+              app_name: "energy-theft-detection"
+          environment_key: "default_env"
+        - task_key: "seed_raw_data"
+          depends_on:
+            - task_key: "create_schema"
+          notebook_task:
+            notebook_path: "./notebooks/01a_bronze_ingest.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+          environment_key: "default_env"
+        - task_key: "run_medallion_pipeline"
+          depends_on:
+            - task_key: "seed_raw_data"
+          pipeline_task:
+            pipeline_id: "${resources.pipelines.medallion_pipeline.id}"
+        - task_key: "model_performance_log"
+          depends_on:
+            - task_key: "run_medallion_pipeline"
+          notebook_task:
+            notebook_path: "./notebooks/01c_gold_aggregate.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+          environment_key: "default_env"
+        - task_key: "train_isolation_forest"
+          depends_on:
+            - task_key: "run_medallion_pipeline"
+          notebook_task:
+            notebook_path: "./notebooks/02_train_isolation_forest.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+          environment_key: "ml_env"
+        - task_key: "train_lstm"
+          depends_on:
+            - task_key: "run_medallion_pipeline"
+          notebook_task:
+            notebook_path: "./notebooks/03_train_lstm_autoencoder.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+          environment_key: "ml_env"
+        - task_key: "batch_scoring"
+          depends_on:
+            - task_key: "train_isolation_forest"
+            - task_key: "train_lstm"
+            - task_key: "model_performance_log"
+          notebook_task:
+            notebook_path: "./notebooks/04_batch_scoring.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+          environment_key: "ml_env"
+        - task_key: "apply_uc_metadata"
+          depends_on:
+            - task_key: "batch_scoring"
+          notebook_task:
+            notebook_path: "./notebooks/05_apply_uc_metadata.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+          environment_key: "ml_env"
+        - task_key: "metric_views"
+          depends_on:
+            - task_key: "apply_uc_metadata"
+          notebook_task:
+            notebook_path: "./notebooks/01d_metric_views.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+          environment_key: "default_env"
+        - task_key: "configure_genie"
+          depends_on:
+            - task_key: "metric_views"
+          notebook_task:
+            notebook_path: "./notebooks/06_configure_genie.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+              genie_space_id: "${var.genie_space_id}"
+              sql_warehouse_id: "${var.sql_warehouse_id}"
+              app_name: "energy-theft-detection"
+          environment_key: "default_env"
+        - task_key: "run_genie_benchmarks"
+          depends_on:
+            - task_key: "configure_genie"
+          notebook_task:
+            notebook_path: "./notebooks/07_run_genie_benchmarks.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+              genie_space_id: "${var.genie_space_id}"
+          environment_key: "default_env"
+      environments:
+        - environment_key: "ml_env"
+          spec:
+            client: "2"
+            dependencies:
+              - "torch"
+              - "scikit-learn"
+        - environment_key: "default_env"
+          spec:
+            client: "2"
+
+variables:
+  sql_warehouse_id:
+    description: "SQL Warehouse ID for statement execution (required per workspace)"
+  catalog:
+    description: "Unity Catalog catalog (required per workspace)"
+  schema:
+    description: "Unity Catalog schema"
+    default: "energy_theft_protection"
+  bedrock_secret_scope:
+    description: "Databricks secret scope containing AWS credentials"
+    default: "energy-theft-bedrock"
+  bedrock_aws_region:
+    description: "AWS region for Bedrock"
+    default: "us-west-2"
+  bedrock_model_id:
+    description: "Bedrock model ID"
+    default: "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+  gemini_secret_scope:
+    description: "Databricks secret scope containing GCP Vertex AI credentials"
+    default: "energy-theft-gemini"
+  gemini_region:
+    description: "GCP region for Vertex AI"
+    default: "us-central1"
+  gemini_project_id:
+    description: "GCP project ID for Vertex AI"
+    default: "gcp-sandbox-field-eng"
+  gemini_model_id:
+    description: "Gemini model ID"
+    default: "gemini-2.0-flash"
+  genie_space_id:
+    description: "Genie Space ID for executive NL queries (required per workspace)"
+targets:
+  dev:
+    default: true
+    workspace:
+      profile: DEFAULT
+    artifacts:
+      default:
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py dz_demos && python3 scripts/verify_app_permissions.py --catalog dz_demos --fix"
+    variables:
+      catalog: "dz_demos"
+      sql_warehouse_id: "148ccb90800933a1"
+      genie_space_id: "01f127aafc2e10a89200349aa20fa460"
+    resources:
+      apps:
+        energy-theft-detection-app:
+          resources:
+            - name: "warehouse"
+              sql_warehouse:
+                id: "${var.sql_warehouse_id}"
+                permission: "CAN_USE"
+            - name: "serving_endpoint"
+              serving_endpoint:
+                name: "energy-theft-bedrock-gateway"
+                permission: "CAN_QUERY"
+            - name: "gemini_endpoint"
+              serving_endpoint:
+                name: "energy-theft-gemini-gateway"
+                permission: "CAN_QUERY"
+            - name: "genie-space"
+              genie_space:
+                name: "Revenue Protection Executive Intelligence"
+                space_id: "${var.genie_space_id}"
+                permission: "CAN_RUN"
+  azsu:
+    workspace:
+      profile: azsu-centrica-demo
+    artifacts:
+      default:
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py azsu_centrica_demo && python3 scripts/verify_app_permissions.py --profile azsu-centrica-demo --catalog azsu_centrica_demo --fix"
+    variables:
+      catalog: "azsu_centrica_demo"
+      sql_warehouse_id: "16de76f2a615a8aa"
+      genie_space_id: "01f137845bff15e1a08bb2ee463075b5"
+    resources:
+      apps:
+        energy-theft-detection-app:
+          resources:
+            - name: "warehouse"
+              sql_warehouse:
+                id: "${var.sql_warehouse_id}"
+                permission: "CAN_USE"
+            - name: "serving_endpoint"
+              serving_endpoint:
+                name: "energy-theft-bedrock-gateway"
+                permission: "CAN_QUERY"
+            - name: "gemini_endpoint"
+              serving_endpoint:
+                name: "energy-theft-gemini-gateway"
+                permission: "CAN_QUERY"
+            - name: "genie-space"
+              genie_space:
+                name: "Revenue Protection Executive Intelligence"
+                space_id: "${var.genie_space_id}"
+                permission: "CAN_RUN"
+  azure-field-demo:
+    workspace:
+      profile: azure-field-demo
+    artifacts:
+      default:
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py dz_demos && python3 scripts/verify_app_permissions.py --profile azure-field-demo --catalog dz_demos --fix"
+    variables:
+      catalog: "dz_demos"
+      sql_warehouse_id: "148ccb90800933a1"
+      genie_space_id: "01f127aafc2e10a89200349aa20fa460"
+    resources:
+      apps:
+        energy-theft-detection-app:
+          resources:
+            - name: "warehouse"
+              sql_warehouse:
+                id: "${var.sql_warehouse_id}"
+                permission: "CAN_USE"
+            - name: "serving_endpoint"
+              serving_endpoint:
+                name: "energy-theft-bedrock-gateway"
+                permission: "CAN_QUERY"
+            - name: "gemini_endpoint"
+              serving_endpoint:
+                name: "energy-theft-gemini-gateway"
+                permission: "CAN_QUERY"
+            - name: "genie-space"
+              genie_space:
+                name: "Revenue Protection Executive Intelligence"
+                space_id: "${var.genie_space_id}"
+                permission: "CAN_RUN"

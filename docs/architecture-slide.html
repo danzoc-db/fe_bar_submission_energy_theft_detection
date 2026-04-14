@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>British Gas — Architecture Slide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #f0f2f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 32px;
+  }
+
+  .slide {
+    width: 1400px;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    padding: 36px 48px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Header ─────────────────────────────────── */
+  .header {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #0A84C8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .header .icon { font-size: 16px; }
+
+  /* ── Pipeline row ───────────────────────────── */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .stage-group {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+
+  .stage-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 90px;
+    text-align: center;
+  }
+
+  .stage-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+  }
+
+  .stage-box .label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  .stage-box .sublabel {
+    font-size: 9px;
+    color: #6b7280;
+    line-height: 1.3;
+  }
+
+  .bronze .stage-icon { background: #fef3c7; color: #d97706; }
+  .bronze .label { color: #d97706; }
+
+  .silver .stage-icon { background: #f3f4f6; color: #6b7280; }
+
+  .gold .stage-icon { background: #fef3c7; color: #d97706; }
+  .gold .label { color: #d97706; }
+
+  .ml .stage-icon { background: #dbeafe; color: #2563eb; }
+
+  .dbsql .stage-icon { background: #fce7f3; color: #db2777; }
+  .dbsql .label { color: #db2777; }
+
+  .genie .stage-icon { background: #d1fae5; color: #059669; }
+  .genie .label { color: #059669; }
+
+  .bedrock .stage-icon { background: #fef3c7; color: #FF9900; }
+
+  .app .stage-icon { background: #f3f4f6; color: #6b7280; }
+
+  .agentbricks .stage-icon { background: #ede9fe; color: #7c3aed; }
+  .agentbricks .label { color: #7c3aed; }
+
+  .bidi-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    gap: 0;
+    color: #7c3aed;
+    font-size: 12px;
+    font-weight: 300;
+    line-height: 1;
+  }
+
+  .arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    color: #9ca3af;
+    font-size: 16px;
+    font-weight: 300;
+  }
+
+  .pipeline-label {
+    background: #f0f7ff;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 10px;
+    color: #6b7280;
+    text-align: center;
+    margin-top: 6px;
+  }
+  .pipeline-label strong {
+    color: #1a1a2e;
+    font-weight: 600;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* ── NLP row (DBSQL + Genie + Bedrock) ──────── */
+  .nlp-group {
+    background: linear-gradient(135deg, #fdf2f8 0%, #f0fdf4 50%, #fffbeb 100%);
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .nlp-label {
+    background: #f8f8f8;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 10px;
+    color: #6b7280;
+    text-align: center;
+    margin-top: 6px;
+  }
+  .nlp-label strong { color: #1a1a2e; font-weight: 600; }
+
+  /* ── Serverless bar ─────────────────────────── */
+  .serverless-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 10px 20px;
+    text-align: center;
+  }
+  .serverless-bar .title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+  .serverless-bar .desc {
+    font-size: 10px;
+    color: #6b7280;
+  }
+  .serverless-bar .icon { font-size: 14px; }
+
+  /* ── Unity Catalog ──────────────────────────── */
+  .uc-section {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .uc-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a1a2e;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .uc-title .icon { font-size: 16px; }
+
+  .uc-subtitle {
+    font-size: 10px;
+    color: #6b7280;
+  }
+
+  .uc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+  }
+
+  .uc-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+
+  .uc-card .card-icon {
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+
+  .uc-card .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+
+  .uc-card .card-desc {
+    font-size: 9px;
+    color: #6b7280;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+
+  .uc-card .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+  }
+
+  .tag {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .data-gov .card-title { color: #0A84C8; }
+  .data-gov .card-icon { color: #0A84C8; }
+  .data-gov .tag { background: #dbeafe; color: #1d4ed8; }
+
+  .biz-sem .card-title { color: #7c3aed; }
+  .biz-sem .card-icon { color: #7c3aed; }
+  .biz-sem .tag { background: #ede9fe; color: #6d28d9; }
+
+  .ai-gov .card-title { color: #0A84C8; }
+  .ai-gov .card-icon { color: #0A84C8; }
+  .ai-gov .tag { background: #dbeafe; color: #1d4ed8; }
+  .ai-gov .tag.external { background: #fff7ed; color: #c2410c; }
+</style>
+</head>
+<body>
+
+<div class="slide">
+
+  <!-- Header -->
+  <div class="header">
+    Energise a fairer future, faster with energy theft detection on Databricks
+    <span class="icon">⚡</span>
+  </div>
+
+  <!-- Pipeline Row -->
+  <div class="pipeline">
+
+    <!-- Medallion -->
+    <div class="col">
+      <div class="stage-group">
+        <div class="stage-box bronze">
+          <div class="stage-icon">📋</div>
+          <div class="label">Bronze</div>
+          <div class="sublabel">2.88M<br/>reads</div>
+        </div>
+        <div class="stage-box silver">
+          <div class="stage-icon">🔍</div>
+          <div class="label">Silver</div>
+          <div class="sublabel">Model<br/>Features</div>
+        </div>
+        <div class="stage-box gold">
+          <div class="stage-icon">⭐</div>
+          <div class="label">Gold</div>
+          <div class="sublabel">Business<br/>Aggregates</div>
+        </div>
+      </div>
+      <div class="pipeline-label"><strong>Lakeflow</strong><br/>Spark Declarative Pipelines</div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <!-- ML Models -->
+    <div class="col">
+      <div class="stage-group">
+        <div class="stage-box ml">
+          <div class="stage-icon">🎯</div>
+          <div class="label">Anomaly<br/>Detector</div>
+          <div class="sublabel">0–100% risk</div>
+        </div>
+        <div class="stage-box ml">
+          <div class="stage-icon">🧠</div>
+          <div class="label">Temporal<br/>Pattern</div>
+          <div class="sublabel">deviation score</div>
+        </div>
+      </div>
+      <div class="pipeline-label"><strong>Customer ML Models on MLflow</strong><br/>Model Registry · Batch Scoring · Composite Risk</div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <!-- NLP + App -->
+    <div class="col" style="flex:1;">
+      <div class="nlp-group">
+        <div class="stage-box dbsql">
+          <div class="stage-icon">📊</div>
+          <div class="label">DB SQL</div>
+          <div class="sublabel">Enterprise DW<br/>Photon-accelerated</div>
+        </div>
+        <div class="stage-box genie">
+          <div class="stage-icon">✨</div>
+          <div class="label">Genie</div>
+          <div class="sublabel">NL → SQL<br/>queries DB SQL</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div class="stage-box bedrock">
+            <div class="stage-icon">☁️</div>
+            <div class="label">Bedrock LLM</div>
+            <div class="sublabel">Claude 3.5 Haiku</div>
+          </div>
+          <div class="stage-box" style="min-width:90px;">
+            <div class="stage-icon" style="background:#dbeafe;color:#4285F4;">✦</div>
+            <div class="label" style="color:#4285F4;">Gemini LLM</div>
+            <div class="sublabel">Gemini 2.0 Flash</div>
+          </div>
+        </div>
+        <div class="arrow" style="padding:0 6px;">→</div>
+        <div class="stage-box app">
+          <div class="stage-icon">🖥️</div>
+          <div class="label">Databricks<br/>App</div>
+          <div class="sublabel">3 views</div>
+        </div>
+        <div class="bidi-arrow">
+          <span>→</span>
+          <span>←</span>
+        </div>
+        <div class="stage-box agentbricks">
+          <div class="stage-icon">🧩</div>
+          <div class="label">Agent<br/>Bricks</div>
+          <div class="sublabel">Supervisor · Genie<br/>KA · MCP</div>
+        </div>
+      </div>
+      <div class="nlp-label"><strong>DB SQL · Genie · Model Serving · Agent Bricks</strong><br/>AI Gateway · Guardrails · Inference Tables</div>
+    </div>
+
+  </div>
+
+  <!-- Serverless Compute -->
+  <div class="serverless-bar">
+    <span class="icon">⚡</span>
+    <div>
+      <div class="title">Serverless Compute — Pay for What You Consume</div>
+      <div class="desc">SQL Warehouse · Model Serving · Databricks Apps — scale to zero, no idle cost</div>
+    </div>
+  </div>
+
+  <!-- Unity Catalog -->
+  <div class="uc-section">
+    <div class="uc-title">
+      <span class="icon">🛡️</span>
+      Unity Catalog
+    </div>
+    <div class="uc-subtitle">One governance model for data, ML models, LLMs, and Genie — no data movement</div>
+
+    <div class="uc-grid">
+
+      <div class="uc-card data-gov">
+        <div class="card-icon">🔒</div>
+        <div class="card-title">Data Governance</div>
+        <div class="card-desc">Automated classification, access control, and lineage for every table and column — Ofgem and UK GDPR aligned.</div>
+        <div class="tags">
+          <span class="tag">PII Tags &amp; Classification</span>
+          <span class="tag">Row Filters</span>
+          <span class="tag">Column Masking</span>
+          <span class="tag">Column-Level Lineage</span>
+          <span class="tag">Audit Trails</span>
+          <span class="tag">Access Control (ACLs)</span>
+        </div>
+      </div>
+
+      <div class="uc-card biz-sem">
+        <div class="card-icon">📐</div>
+        <div class="card-title">Business Semantics</div>
+        <div class="card-desc">Governed KPI definitions shared across the dashboard, Genie, and all downstream consumers — one source of truth.</div>
+        <div class="tags">
+          <span class="tag">UC Metric Views</span>
+          <span class="tag">Biz Materialisation</span>
+          <span class="tag">Column Descriptions</span>
+          <span class="tag">Business Glossary</span>
+          <span class="tag">Genie Context</span>
+        </div>
+      </div>
+
+      <div class="uc-card ai-gov">
+        <div class="card-icon">🧠</div>
+        <div class="card-title">AI Governance</div>
+        <div class="card-desc">Govern every model type — custom ML, foundation, and external — with versioning, guardrails, and full auditability.</div>
+        <div class="tags">
+          <span class="tag">Custom ML Models</span>
+          <span class="tag">Foundation Models</span>
+          <span class="tag external">External (Bedrock)</span>
+          <span class="tag" style="background:#dbeafe;color:#4285F4;">External (Gemini)</span>
+          <span class="tag">MLflow Registry</span>
+          <span class="tag">AI Gateway</span>
+          <span class="tag">Rate Limits</span>
+          <span class="tag">Safety Guardrails</span>
+          <span class="tag">Endpoint Permissions</span>
+          <span class="tag">Inference Tables</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>British Gas x Databricks — Hero Slide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px;
+  }
+
+  .slide {
+    width: 1200px;
+    aspect-ratio: 16 / 9;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 80px;
+    gap: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(10, 132, 200, 0.4);
+    color: #0A84C8;
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .headline {
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: #1a1a2e;
+    max-width: 900px;
+  }
+
+  .headline .accent {
+    color: #0A84C8;
+  }
+
+  .headline .muted {
+    color: #9ca3af;
+  }
+
+  .subhead {
+    font-size: 22px;
+    font-weight: 500;
+    color: #1a1a2e;
+    max-width: 720px;
+    line-height: 1.5;
+  }
+
+  .subhead .accent {
+    color: #0A84C8;
+  }
+
+  .body-text {
+    font-size: 16px;
+    color: #6b7280;
+    max-width: 680px;
+    line-height: 1.6;
+  }
+
+  .tagline {
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(10, 132, 200, 0.7);
+    letter-spacing: 0.03em;
+    font-style: italic;
+  }
+
+  .divider {
+    width: 120px;
+    height: 1px;
+    background: #e5e7eb;
+  }
+
+  .footer {
+    display: flex;
+    gap: 16px;
+    font-size: 14px;
+    color: #9ca3af;
+  }
+
+  .footer span:not(:last-child)::after {
+    content: '·';
+    margin-left: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="slide">
+  <div class="badge">Databricks x British Gas</div>
+
+  <h1 class="headline">
+    <span class="accent">£1.4 billion</span> is stolen from
+    UK energy suppliers every year.<br/>
+    <span class="muted">40% goes undetected.</span>
+  </h1>
+
+  <p class="subhead">
+    How might British Gas turn <span class="accent">£323M</span>
+    of loss exposure into recovered revenue, faster, with Data &amp; AI?
+  </p>
+
+  <p class="tagline">
+    Energise a fairer future, faster with energy theft detection on Databricks
+  </p>
+</div>
+
+</body>
+</html>

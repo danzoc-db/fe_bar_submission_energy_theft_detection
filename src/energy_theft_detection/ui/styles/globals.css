@@ -1,0 +1,221 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * British Gas / Centrica Brand Theme
+ * 
+ * Colors from Nucleus Design System (britishgas.design):
+ *   Navy (primary):  #002F87
+ *   Cyan (accent):   #0093F5
+ *   Lime (success):  #7FCC00
+ *   Orange:          #FF5900
+ *   Red:             #D50032
+ *   Slate:           #111518
+ *   Light Gray:      #F3F5F7
+ */
+
+:root {
+  --background: oklch(0.975 0.003 240);
+  --foreground: oklch(0.20 0.04 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.20 0.04 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.20 0.04 260);
+  --primary: oklch(0.28 0.10 260);
+  --primary-foreground: oklch(0.98 0.002 240);
+  --secondary: oklch(0.96 0.004 240);
+  --secondary-foreground: oklch(0.28 0.10 260);
+  --muted: oklch(0.96 0.004 240);
+  --muted-foreground: oklch(0.50 0.02 250);
+  --accent: oklch(0.62 0.19 245);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.50 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.91 0.004 240);
+  --input: oklch(0.91 0.004 240);
+  --ring: oklch(0.62 0.19 245);
+
+  /* Charts: British Gas branded palette */
+  --chart-1: oklch(0.28 0.10 260);
+  --chart-2: oklch(0.62 0.19 245);
+  --chart-3: oklch(0.72 0.20 135);
+  --chart-4: oklch(0.65 0.22 40);
+  --chart-5: oklch(0.50 0.22 25);
+
+  --radius: 0.5rem;
+
+  /* Sidebar: BG Navy dark */
+  --sidebar: oklch(0.22 0.06 260);
+  --sidebar-foreground: oklch(0.93 0.004 240);
+  --sidebar-primary: oklch(0.62 0.19 245);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.30 0.06 260);
+  --sidebar-accent-foreground: oklch(0.93 0.004 240);
+  --sidebar-border: oklch(0.32 0.05 260);
+  --sidebar-ring: oklch(0.62 0.19 245);
+}
+
+.dark {
+  --background: oklch(0.15 0.025 260);
+  --foreground: oklch(0.93 0.004 240);
+  --card: oklch(0.19 0.035 260);
+  --card-foreground: oklch(0.93 0.004 240);
+  --popover: oklch(0.19 0.035 260);
+  --popover-foreground: oklch(0.93 0.004 240);
+  --primary: oklch(0.62 0.19 245);
+  --primary-foreground: oklch(0.15 0.025 260);
+  --secondary: oklch(0.27 0.04 260);
+  --secondary-foreground: oklch(0.93 0.004 240);
+  --muted: oklch(0.27 0.04 260);
+  --muted-foreground: oklch(0.65 0.015 250);
+  --accent: oklch(0.62 0.19 245);
+  --accent-foreground: oklch(0.15 0.025 260);
+  --destructive: oklch(0.45 0.18 25);
+  --destructive-foreground: oklch(0.65 0.22 25);
+  --border: oklch(0.30 0.04 260);
+  --input: oklch(0.30 0.04 260);
+  --ring: oklch(0.62 0.19 245);
+
+  /* Charts: BG dark mode palette */
+  --chart-1: oklch(0.62 0.19 245);
+  --chart-2: oklch(0.72 0.20 135);
+  --chart-3: oklch(0.65 0.22 40);
+  --chart-4: oklch(0.60 0.20 300);
+  --chart-5: oklch(0.75 0.15 85);
+
+  /* Sidebar: deeper navy */
+  --sidebar: oklch(0.15 0.03 260);
+  --sidebar-foreground: oklch(0.93 0.004 240);
+  --sidebar-primary: oklch(0.62 0.19 245);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.24 0.04 260);
+  --sidebar-accent-foreground: oklch(0.93 0.004 240);
+  --sidebar-border: oklch(0.27 0.04 260);
+  --sidebar-ring: oklch(0.62 0.19 245);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* British Gas brand color utilities (Nucleus Design System) */
+  --color-bg-navy: oklch(0.28 0.10 260);
+  --color-bg-cyan: oklch(0.62 0.19 245);
+  --color-bg-lime: oklch(0.72 0.20 135);
+  --color-bg-orange: oklch(0.65 0.22 40);
+  --color-bg-red: oklch(0.50 0.22 25);
+  --color-bg-slate: oklch(0.18 0.01 260);
+  --color-bg-blue: oklch(0.42 0.16 260);
+  --color-bg-yellow: oklch(0.84 0.14 85);
+  --color-bg-forest: oklch(0.58 0.16 155);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Dashboard entrance animations — GPU-composited for smoothness */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale3d(0.96, 0.96, 1);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-fade-slide-up {
+  will-change: opacity, transform;
+  animation: fadeSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-scale-in {
+  will-change: opacity, transform;
+  animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-count-up {
+  will-change: opacity, transform;
+  animation: countUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Skeleton pulse — smoother GPU animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes slideProgress {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(250%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-bedrock-progress {
+  animation: slideProgress 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}

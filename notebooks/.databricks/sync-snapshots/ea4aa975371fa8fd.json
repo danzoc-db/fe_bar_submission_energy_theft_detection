@@ -1,0 +1,44 @@
+{
+  "version": "v1",
+  "host": "https://fe-sandbox-centrica-azsu-dzdemos.cloud.databricks.com",
+  "remote_path": "/Users/daniel.zoccali@databricks.com/.bundle/energy-theft-detection/azsu/files/notebooks",
+  "last_modified_times": {
+    "00_create_schema.py": "2026-03-20T21:35:41.494407948Z",
+    "01a_bronze_ingest.py": "2026-03-20T21:36:58.502586973Z",
+    "01b_silver_cleanse.py": "2026-03-20T21:37:21.917711133Z",
+    "01c_gold_aggregate.py": "2026-03-22T19:23:44.498623791Z",
+    "01d_metric_views.py": "2026-03-22T19:09:48.652996078Z",
+    "02_train_isolation_forest.py": "2026-03-20T21:38:48.624599339Z",
+    "03_train_lstm_autoencoder.py": "2026-03-20T21:39:09.361177912Z",
+    "04_batch_scoring.py": "2026-03-22T19:24:50.289368579Z",
+    "05_apply_uc_metadata.py": "2026-03-20T19:26:19.794941548Z",
+    "99_teardown_bord_gais.py": "2026-03-20T21:42:48.371059201Z",
+    "99_test_bord_gais.py": "2026-03-20T21:42:35.800707833Z"
+  },
+  "local_to_remote_names": {
+    "00_create_schema.py": "00_create_schema",
+    "01a_bronze_ingest.py": "01a_bronze_ingest",
+    "01b_silver_cleanse.py": "01b_silver_cleanse",
+    "01c_gold_aggregate.py": "01c_gold_aggregate",
+    "01d_metric_views.py": "01d_metric_views",
+    "02_train_isolation_forest.py": "02_train_isolation_forest",
+    "03_train_lstm_autoencoder.py": "03_train_lstm_autoencoder",
+    "04_batch_scoring.py": "04_batch_scoring",
+    "05_apply_uc_metadata.py": "05_apply_uc_metadata",
+    "99_teardown_bord_gais.py": "99_teardown_bord_gais",
+    "99_test_bord_gais.py": "99_test_bord_gais"
+  },
+  "remote_to_local_names": {
+    "00_create_schema": "00_create_schema.py",
+    "01a_bronze_ingest": "01a_bronze_ingest.py",
+    "01b_silver_cleanse": "01b_silver_cleanse.py",
+    "01c_gold_aggregate": "01c_gold_aggregate.py",
+    "01d_metric_views": "01d_metric_views.py",
+    "02_train_isolation_forest": "02_train_isolation_forest.py",
+    "03_train_lstm_autoencoder": "03_train_lstm_autoencoder.py",
+    "04_batch_scoring": "04_batch_scoring.py",
+    "05_apply_uc_metadata": "05_apply_uc_metadata.py",
+    "99_teardown_bord_gais": "99_teardown_bord_gais.py",
+    "99_test_bord_gais": "99_test_bord_gais.py"
+  }
+}
