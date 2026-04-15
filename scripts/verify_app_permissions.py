@@ -1,7 +1,8 @@
 """Verify and fix permissions for the energy-theft-detection Databricks App.
 
 Run after `databricks bundle deploy` to ensure the app's service principal
-has CAN_USE on the SQL warehouse and USE SCHEMA + SELECT on the data schema.
+has CAN_USE on the SQL warehouse, USE SCHEMA + SELECT on the data schema,
+and MODIFY on writable tables (investigation_cases, anomaly_scores).
 
 Usage:
     python3 scripts/verify_app_permissions.py [--profile PROFILE] [--fix]
@@ -160,7 +161,7 @@ def main():
             print("  ✅ Fixed — CAN_USE granted")
 
     # 2. Schema grants
-    print(f"\n[2/2] Unity Catalog grants on {schema_fqn}")
+    print(f"\n[2/3] Unity Catalog grants on {schema_fqn}")
     grants = check_schema_grants(w, sp_id, catalog, schema_fqn)
     missing = [g for g, ok in grants.items() if not ok]
     for grant, ok in grants.items():
@@ -169,6 +170,40 @@ def main():
         all_ok = False
         if args.fix:
             fix_schema_grants(w, sp_id, missing, catalog, schema_fqn)
+
+    # 3. MODIFY on tables that the close-investigation endpoint writes to
+    writable_tables = ["investigation_cases", "anomaly_scores"]
+    print(f"\n[3/3] MODIFY grants on writable tables")
+    for tbl in writable_tables:
+        tbl_fqn = f"{schema_fqn}.{tbl}"
+        has_modify = False
+        try:
+            resp = w.statement_execution.execute_statement(
+                statement=f"SHOW GRANTS ON TABLE {tbl_fqn}",
+                warehouse_id=wh_id,
+                wait_timeout="30s",
+            )
+            for row in (resp.result.data_array or []) if resp.result else []:
+                row_str = str(row).upper()
+                if sp_id in str(row) and "MODIFY" in row_str:
+                    has_modify = True
+        except Exception:
+            pass
+        if has_modify:
+            print(f"  ✅ MODIFY on {tbl}")
+        else:
+            all_ok = False
+            print(f"  ❌ MODIFY missing on {tbl}")
+            if args.fix:
+                try:
+                    w.statement_execution.execute_statement(
+                        statement=f"GRANT MODIFY ON TABLE {tbl_fqn} TO `{sp_id}`",
+                        warehouse_id=wh_id,
+                        wait_timeout="30s",
+                    )
+                    print(f"  ✅ Fixed — MODIFY on {tbl}")
+                except Exception as e:
+                    print(f"  ❌ Failed to grant MODIFY on {tbl}: {e}")
 
     if all_ok:
         print("\n✅ All permissions verified — app is ready.")

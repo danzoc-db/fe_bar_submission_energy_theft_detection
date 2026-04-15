@@ -8,18 +8,18 @@ interface LogoProps {
 
 export function Logo({ to = "/", className = "", showText = true }: LogoProps) {
   const content = (
-    <div className={`flex items-center gap-2.5 ${className}`}>
+    <div className={`flex items-center gap-3 ${className}`}>
       <img
         src="/bg-icon.svg"
         alt="UKI Gas"
-        className="h-7 w-auto"
+        className="h-10 w-auto"
       />
       {showText && (
         <div className="flex flex-col leading-tight">
-          <span className="font-semibold text-sm tracking-tight">
+          <span className="font-bold text-base tracking-tight">
             Revenue Protection
           </span>
-          <span className="text-[10px] text-sidebar-foreground/60">
+          <span className="text-xs text-sidebar-foreground/60">
             Energy Theft Detection
           </span>
         </div>

@@ -166,12 +166,17 @@ function Index() {
         {/* Nav bar */}
         <nav className="flex items-center justify-between px-8 py-4">
           <div className="flex items-center gap-3">
-            <img src="/bg-icon.svg" alt="UKI Gas" className="h-8 w-auto" />
-            <span className="font-semibold text-sm tracking-tight text-muted-foreground">
-              Revenue Protection
-            </span>
+            <img src="/bg-icon.svg" alt="UKI Gas" className="h-14 w-auto" />
+            <div className="flex flex-col leading-tight">
+              <span className="font-bold text-lg tracking-tight text-foreground">
+                Revenue Protection
+              </span>
+              <span className="text-xs text-muted-foreground/70">
+                Energy Theft Detection
+              </span>
+            </div>
           </div>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             March 2026 — UKI Energy / UKI Gas
           </span>
         </nav>

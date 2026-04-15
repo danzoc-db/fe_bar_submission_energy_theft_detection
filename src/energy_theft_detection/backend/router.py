@@ -1621,28 +1621,38 @@ async def close_investigation(request: Request, account_id: str, body: Investiga
     db_outcome = outcome_map.get(body.outcome, "PENDING")
     recovered = body.recovered_amount if body.outcome == "confirmed_theft" else None
 
+    recovered_sql = str(recovered) if recovered is not None else "NULL"
+    notes_safe = (body.notes or "").replace("'", "''")
+
     try:
         db.execute(f"""
-            UPDATE investigation_cases
-            SET outcome = '{db_outcome}',
-                closed_timestamp = current_timestamp(),
-                revenue_recovered_gbp = {recovered if recovered is not None else 'NULL'}
-            WHERE account_id = '{account_id}'
-              AND (outcome IS NULL OR outcome = 'PENDING')
+            MERGE INTO investigation_cases AS t
+            USING (SELECT '{account_id}' AS account_id) AS s
+            ON t.account_id = s.account_id
+              AND (t.outcome IS NULL OR t.outcome = 'PENDING')
+            WHEN MATCHED THEN UPDATE SET
+              outcome = '{db_outcome}',
+              closed_timestamp = current_timestamp(),
+              revenue_recovered_gbp = {recovered_sql}
+            WHEN NOT MATCHED THEN INSERT (
+              case_id, account_id, opened_timestamp, outcome,
+              closed_timestamp, revenue_recovered_gbp
+            ) VALUES (
+              concat('CASE-', unix_timestamp()),
+              '{account_id}',
+              current_timestamp(),
+              '{db_outcome}',
+              current_timestamp(),
+              {recovered_sql}
+            )
         """)
 
-        if db_outcome == "THEFT_CONFIRMED":
-            db.execute(f"""
-                UPDATE anomaly_scores
-                SET investigation_status = 'CONFIRMED_THEFT'
-                WHERE account_id = '{account_id}'
-            """)
-        elif db_outcome in ("FALSE_POSITIVE", "INCONCLUSIVE"):
-            db.execute(f"""
-                UPDATE anomaly_scores
-                SET investigation_status = 'CLOSED'
-                WHERE account_id = '{account_id}'
-            """)
+        new_status = "CONFIRMED_THEFT" if db_outcome == "THEFT_CONFIRMED" else "CLOSED"
+        db.execute(f"""
+            UPDATE anomaly_scores
+            SET investigation_status = '{new_status}'
+            WHERE account_id = '{account_id}'
+        """)
 
     except Exception as e:
         logger.error(f"Close investigation failed for {account_id}: {e}")
