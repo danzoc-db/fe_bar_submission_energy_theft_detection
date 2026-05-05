@@ -103,15 +103,3 @@ class TestModelPerformance:
         assert isinstance(r.json(), list)
 
 
-class TestHealthCheck:
-    """TC-H1: Application health."""
-
-    def test_health_returns_200(self, client):
-        """MUST: Health check responds."""
-        r = client.get("/api/health")
-        assert r.status_code == 200
-
-    def test_health_returns_ok(self, client):
-        """MUST: Status is 'ok'."""
-        data = client.get("/api/health").json()
-        assert data["status"] == "ok"

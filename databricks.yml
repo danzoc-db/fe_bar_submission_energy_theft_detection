@@ -210,6 +210,9 @@ resources:
   jobs:
     end_to_end:
       name: "energy-theft-end-to-end"
+      schedule:
+        quartz_cron_expression: "0 0 6 ? * MON"
+        timezone_id: "Europe/London"
       permissions:
         - group_name: "users"
           level: "CAN_VIEW"

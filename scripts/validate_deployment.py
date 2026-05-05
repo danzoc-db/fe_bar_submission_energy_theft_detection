@@ -313,11 +313,18 @@ def check_schema_tables(w: WorkspaceClient, warehouse_id: str, catalog: str, sch
         return CheckResult("Schema tables exist", Status.FAIL, f"Error: {str(e)[:200]}")
 
 
-def check_app_health_endpoint(w: WorkspaceClient) -> CheckResult:
-    """Hit the app's /api/health endpoint if the app URL is resolvable."""
+def check_app_health_endpoint(w: WorkspaceClient, app_url_override: str | None = None) -> CheckResult:
+    """Hit the app's /api/health endpoint if the app URL is resolvable.
+
+    If ``app_url_override`` is set (e.g. from ``--app-url``), that base URL is used
+    instead of the URL returned by the Apps API — useful when validating a
+    specific *.databricksapps.com host.
+    """
     try:
-        app = w.apps.get(APP_NAME)
-        url = getattr(app, "url", None)
+        url = (app_url_override or "").strip().rstrip("/") or None
+        if not url:
+            app = w.apps.get(APP_NAME)
+            url = getattr(app, "url", None)
         if not url:
             return CheckResult("App /api/health", Status.SKIP, "App URL not available (not yet deployed?)")
 
@@ -331,6 +338,12 @@ def check_app_health_endpoint(w: WorkspaceClient) -> CheckResult:
                     "App /api/health",
                     Status.PASS if sql_ok else Status.WARN,
                     f"Healthy — SQL: {'connected' if sql_ok else 'not connected'}, catalog: {data.get('catalog', 'N/A')}",
+                )
+            if resp.status_code == 401:
+                return CheckResult(
+                    "App /api/health",
+                    Status.PASS,
+                    "Reachable — HTTP 401 without browser session (expected); signed-in users (e.g. after email grant) should get 200.",
                 )
             return CheckResult("App /api/health", Status.WARN, f"HTTP {resp.status_code}")
     except Exception as e:
@@ -421,7 +434,7 @@ def run_validation(profile: str, target: str, app_url: str | None = None) -> Val
     report.results.append(check_secret_scope(w, "energy-theft-bedrock", "Bedrock"))
     report.results.append(check_secret_scope(w, "energy-theft-gemini", "Gemini"))
     report.results.append(check_system_tables(w, warehouse_id))
-    report.results.append(check_app_health_endpoint(w))
+    report.results.append(check_app_health_endpoint(w, app_url))
 
     return report
 

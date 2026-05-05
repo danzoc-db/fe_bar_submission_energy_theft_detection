@@ -47,41 +47,41 @@ export function UnderTheHood({ title, children }: UnderTheHoodProps) {
     ? createPortal(
         <div
           ref={panelRef}
-          className="fixed z-50 animate-in slide-in-from-left-4 fade-in-0 duration-200"
+          className="fixed z-50 animate-in slide-in-from-left-4 fade-in-0 duration-200 w-[min(630px,calc(100vw-2rem))]"
           style={{
             top: 80,
             left: 72,
-            width: 420,
             maxHeight: "calc(100vh - 100px)",
           }}
         >
           <div className="rounded-xl border bg-card shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: "calc(100vh - 100px)" }}>
-            {/* Orange header */}
             <div
-              className="px-4 py-2.5 flex items-center justify-between shrink-0"
+              className="px-6 py-4 flex items-center justify-between shrink-0 gap-3"
               style={{ background: DB_ORANGE }}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <Wrench className="h-3.5 w-3.5 text-white shrink-0" />
+              <div className="flex items-center gap-3 min-w-0">
+                <Wrench className="h-6 w-6 text-white shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-white text-xs font-semibold leading-tight truncate">
+                  <p className="text-white text-xl font-semibold leading-tight truncate">
                     Under the Hood
                   </p>
-                  <p className="text-white/70 text-[10px] leading-tight truncate">
+                  <p className="text-white/80 text-base leading-snug truncate">
                     {title}
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setOpen(false)}
-                className="text-white/60 hover:text-white transition-colors shrink-0 ml-2"
+                className="text-white/70 hover:text-white transition-colors shrink-0 p-1 rounded-md hover:bg-white/10"
+                aria-label="Close"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-6 w-6" />
               </button>
             </div>
 
             {/* Scrollable body */}
-            <div className="overflow-y-auto px-4 py-3 space-y-3">
+            <div className="overflow-y-auto px-6 py-5 space-y-5">
               {children}
             </div>
           </div>
@@ -125,12 +125,12 @@ export function HoodSection({
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <h4 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {Icon && <Icon className="h-3 w-3" style={{ color: DB_ORANGE }} />}
+    <div className="space-y-2.5">
+      <h4 className="flex items-center gap-2.5 text-base font-semibold uppercase tracking-wider text-muted-foreground">
+        {Icon && <Icon className="h-5 w-5 shrink-0" style={{ color: DB_ORANGE }} />}
         {title}
       </h4>
-      <div className="text-[12px] leading-snug text-foreground space-y-1">
+      <div className="text-lg leading-relaxed text-foreground space-y-1.5">
         {children}
       </div>
     </div>
@@ -147,19 +147,19 @@ export function HoodBullet({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-1.5">
+    <div className="flex items-start gap-2.5">
       {Icon ? (
         <Icon
-          className="mt-0.5 h-3 w-3 shrink-0"
+          className="mt-1 h-5 w-5 shrink-0"
           style={{ color: DB_ORANGE }}
         />
       ) : (
         <span
-          className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0"
+          className="mt-2 h-2.5 w-2.5 rounded-full shrink-0"
           style={{ background: DB_ORANGE }}
         />
       )}
-      <p>
+      <p className="text-lg leading-relaxed">
         <strong>{bold}</strong> — {children}
       </p>
     </div>
@@ -183,20 +183,20 @@ export function FabricCallout({
   if (!competeEnabled) return null;
 
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30 p-2.5 space-y-1">
-      <div className="flex items-center gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-red-700 dark:text-red-400">
+    <div className="rounded-xl border border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30 p-4 space-y-2.5">
+      <div className="flex items-center gap-3 flex-wrap">
+        <p className="text-base font-semibold uppercase tracking-wider text-red-700 dark:text-red-400">
           Why not Fabric?
         </p>
         {category && (
           <span
-            className={`inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wider ${CATEGORY_COLORS[category]}`}
+            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-sm font-semibold uppercase tracking-wider ${CATEGORY_COLORS[category]}`}
           >
             {category}
           </span>
         )}
       </div>
-      <div className="text-[12px] leading-snug text-red-900 dark:text-red-200 space-y-1">
+      <div className="text-lg leading-relaxed text-red-900 dark:text-red-200 space-y-1.5">
         {children}
       </div>
     </div>

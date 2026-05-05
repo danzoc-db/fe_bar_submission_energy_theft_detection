@@ -66,15 +66,20 @@ RUN RATE & TARGET CONTEXT:
 - When showing monthly trends that include Oct–Dec 2025, note that those months reflect the initial ramp-up period.
 - Cumulative recovery should be measured from the start of deployment (October 2025), but run rate should be year-on-year from January 2026.
 
-When asked about regional performance, use the Region dimension from theft_detection_metrics.
-When asked about postcode hotspots, use risk_exposure_metrics with Postcode Sector dimension.
-When asked about fuel type breakdowns on investigation/recovery data, JOIN investigation_cases to anomaly_scores on account_id to get fuel_type."""
+When asked about regional performance, use the Region dimension from theft_detection_metrics (revenue is tied to closed_timestamp via the Month dimension).
+When asked about postcode hotspots, use risk_exposure_metrics with Postcode Sector dimension (HIGH Risk Accounts, Average Risk Score).
+When asked about fuel type breakdowns on investigation/recovery data, JOIN investigation_cases to anomaly_scores on account_id to get fuel_type — note this is advanced and error-prone; prefer metric-view measures when possible.
+
+TRIAGE / BACKLOG QUESTIONS (OPEN + HIGH):
+- Count and average composite_risk_score: query anomaly_scores WHERE risk_tier = 'HIGH' AND investigation_status = 'OPEN'.
+- Model confidence: latest row from model_performance_log WHERE risk_tier = 'HIGH' (precision_pct).
+- Indicative yield context: MEASURE(`Avg Recovery Per Case`) from theft_detection_metrics for YTD (do not multiply into a guarantee; frame as indicative given published precision)."""
 
 SAMPLE_QUESTIONS = [
     "What is our annualised run rate based on 2026 monthly recovery so far?",
-    "Which region is recovering the most revenue and which is underperforming — show monthly revenue recovered by region?",
-    "Which postcode sectors have the highest concentration of HIGH risk accounts, and what is their average risk score?",
-    "Compare the average recovery per confirmed theft case between gas and electricity — which fuel type yields more per case?",
+    "Which postcode sectors have the most HIGH risk accounts and what is each sector's average composite risk score? Rank the top 10.",
+    "For 2026 year-to-date, which region recovered the most revenue from confirmed theft and which the least? Show total GBP by region.",
+    "For OPEN HIGH-risk triage: how many accounts, their average composite_risk_score, latest HIGH-tier precision_pct from model_performance_log, and YTD Avg Recovery Per Case from theft_detection_metrics — combine for indicative backlog upside at current model quality.",
     "Show me total revenue recovered and confirmed theft cases by month for the last 6 months.",
     "What is the current detection precision rate and how has it trended monthly?",
     "What percentage of our estate is flagged as HIGH risk, broken down by fuel type?",
@@ -424,15 +429,15 @@ _ensure_demo_user_access(GENIE_SPACE_ID, SQL_WAREHOUSE_ID, DEMO_USERS)
 BENCHMARK_QUESTIONS = [
     {
         "question": "Are we on track to hit the £97M annual recovery target?",
-        "sql_answer": f"""SELECT SUM(revenue_recovered) AS cumulative_recovery, SUM(CASE WHEN YEAR(resolution_date) = 2026 THEN revenue_recovered ELSE 0 END) / NULLIF(MONTH(CURRENT_DATE()) - 1, 0) * 12 AS annualised_run_rate FROM {CATALOG}.{SCHEMA}.investigation_cases WHERE outcome = 'THEFT_CONFIRMED'""",
+        "sql_answer": f"""SELECT SUM(revenue_recovered_gbp) AS cumulative_recovery, SUM(CASE WHEN YEAR(closed_timestamp) = 2026 THEN revenue_recovered_gbp ELSE 0 END) / NULLIF(GREATEST(MONTH(CURRENT_DATE()) - 1, 1), 0) * 12 AS annualised_run_rate FROM {CATALOG}.{SCHEMA}.investigation_cases WHERE outcome = 'THEFT_CONFIRMED' AND closed_timestamp IS NOT NULL""",
     },
     {
         "question": "What is our annualised run rate based on 2026 monthly recovery so far?",
-        "sql_answer": f"""SELECT SUM(revenue_recovered) / NULLIF(MONTH(CURRENT_DATE()) - 1, 0) * 12 AS annualised_run_rate FROM {CATALOG}.{SCHEMA}.investigation_cases WHERE outcome = 'THEFT_CONFIRMED' AND YEAR(resolution_date) = 2026""",
+        "sql_answer": f"""SELECT SUM(revenue_recovered_gbp) / NULLIF(GREATEST(MONTH(CURRENT_DATE()) - 1, 1), 0) * 12 AS annualised_run_rate FROM {CATALOG}.{SCHEMA}.investigation_cases WHERE outcome = 'THEFT_CONFIRMED' AND YEAR(closed_timestamp) = 2026 AND closed_timestamp IS NOT NULL""",
     },
     {
-        "question": "How many HIGH risk accounts are there and what is their total estimated annual loss?",
-        "sql_answer": f"""SELECT COUNT(*) AS high_risk_accounts, SUM(estimated_annual_loss) AS total_estimated_loss FROM {CATALOG}.{SCHEMA}.anomaly_scores WHERE risk_tier = 'HIGH'""",
+        "question": "How many HIGH risk accounts are there and what is their average composite risk score?",
+        "sql_answer": f"""SELECT COUNT(*) AS high_risk_accounts, AVG(composite_risk_score) AS avg_composite_score FROM {CATALOG}.{SCHEMA}.anomaly_scores WHERE risk_tier = 'HIGH'""",
     },
     {
         "question": "What is the total number of high risk flagged accounts?",
@@ -440,11 +445,11 @@ BENCHMARK_QUESTIONS = [
     },
     {
         "question": "Show me monthly revenue recovered by region",
-        "sql_answer": f"""SELECT region, DATE_TRUNC('month', resolution_date) AS month, SUM(revenue_recovered) AS revenue_recovered FROM {CATALOG}.{SCHEMA}.investigation_cases ic JOIN {CATALOG}.{SCHEMA}.property_reference pr ON ic.account_id = pr.account_id WHERE outcome = 'THEFT_CONFIRMED' GROUP BY region, DATE_TRUNC('month', resolution_date) ORDER BY month, region""",
+        "sql_answer": f"""SELECT region, DATE_TRUNC('month', closed_timestamp) AS month, SUM(revenue_recovered_gbp) AS revenue_recovered FROM {CATALOG}.{SCHEMA}.investigation_cases WHERE outcome = 'THEFT_CONFIRMED' AND closed_timestamp IS NOT NULL GROUP BY region, DATE_TRUNC('month', closed_timestamp) ORDER BY month, region""",
     },
     {
         "question": "Which region is recovering the most revenue?",
-        "sql_answer": f"""SELECT region, SUM(revenue_recovered) AS total_recovered FROM {CATALOG}.{SCHEMA}.investigation_cases ic JOIN {CATALOG}.{SCHEMA}.property_reference pr ON ic.account_id = pr.account_id WHERE outcome = 'THEFT_CONFIRMED' GROUP BY region ORDER BY total_recovered DESC""",
+        "sql_answer": f"""SELECT region, SUM(revenue_recovered_gbp) AS total_recovered FROM {CATALOG}.{SCHEMA}.investigation_cases WHERE outcome = 'THEFT_CONFIRMED' AND closed_timestamp IS NOT NULL GROUP BY region ORDER BY total_recovered DESC""",
     },
     {
         "question": "What is the current detection precision rate?",
@@ -453,6 +458,10 @@ BENCHMARK_QUESTIONS = [
     {
         "question": "How has our precision rate trended monthly?",
         "sql_answer": f"""SELECT month, precision_pct FROM {CATALOG}.{SCHEMA}.model_performance_log WHERE risk_tier = 'HIGH' ORDER BY month""",
+    },
+    {
+        "question": "How many OPEN HIGH risk accounts are in triage and what is their average composite risk score?",
+        "sql_answer": f"""SELECT COUNT(*) AS open_high_backlog, AVG(composite_risk_score) AS avg_composite_score FROM {CATALOG}.{SCHEMA}.anomaly_scores WHERE risk_tier = 'HIGH' AND investigation_status = 'OPEN'""",
     },
 ]
 

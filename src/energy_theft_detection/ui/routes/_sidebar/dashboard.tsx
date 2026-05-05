@@ -88,11 +88,20 @@ class SectionErrorBoundary extends Component<SectionBoundaryProps, SectionBounda
   }
 }
 
+const KPI_POLL_MS = 30_000;
+const kpiSelector = <T,>() => ({
+  query: {
+    select: (data: { data: T }) => data.data,
+    refetchInterval: KPI_POLL_MS,
+    staleTime: KPI_POLL_MS,
+  },
+});
+
 const SUGGESTED_QUESTIONS = [
-  "At the current monthly run rate, will we hit the £97M recovery target this year — show monthly recovered revenue vs the £8.1M/month pace needed?",
-  "Which region is recovering the most revenue and which is underperforming — show monthly revenue recovered by region?",
-  "Which postcode sectors have the highest concentration of HIGH risk accounts, and what is their average risk score?",
-  "Compare the average recovery per confirmed theft case between gas and electricity — which fuel type yields more per case?",
+  "At the current monthly run rate based on 2026 closures only, are we on track for the £97M annual recovery target? For the current month, extrapolate from the daily rate so far. Show monthly recovered revenue vs the £8.1M/month pace needed.",
+  "Which postcode sectors have the most HIGH risk accounts and what is each sector's average composite risk score? Rank the top 10.",
+  "For 2026 year-to-date (cases closed in 2026), which region recovered the most revenue from confirmed theft and which recovered the least? Show total GBP recovered by region.",
+  "Show all investigation cases closed today — include account_id, outcome, revenue_recovered_gbp, and closed_timestamp ordered by closed_timestamp descending.",
 ];
 
 function DashboardPending() {
@@ -353,7 +362,7 @@ const KPI_META: KPIMeta[] = [
 ];
 
 function KPIRow() {
-  const { data: kpis } = useGetDashboardKPIsSuspense(selector());
+  const { data: kpis } = useGetDashboardKPIsSuspense(kpiSelector());
   const kpiRecord = kpis as unknown as Record<string, number>;
 
   const groupLabels = Object.fromEntries(KPI_GROUPS.map((g) => [g.id, g.label]));
@@ -449,7 +458,7 @@ function KPITile({
 // ---------------------------------------------------------------------------
 
 function CasePipelineCard() {
-  const { data: kpis } = useGetInvestigationKPIsSuspense(selector());
+  const { data: kpis } = useGetInvestigationKPIsSuspense(kpiSelector());
   const confirmationRate = kpis.closed_this_month > 0
     ? Math.round((kpis.confirmed_theft_this_month / kpis.closed_this_month) * 1000) / 10
     : 0;
@@ -509,7 +518,7 @@ function fmtGbp(n: number): string {
 }
 
 function RecoveryOpportunityCard() {
-  const { data: opp } = useGetDashboardRecoveryOpportunitySuspense(selector());
+  const { data: opp } = useGetDashboardRecoveryOpportunitySuspense(kpiSelector());
 
   const BG_TARGET = 97_000_000;
 

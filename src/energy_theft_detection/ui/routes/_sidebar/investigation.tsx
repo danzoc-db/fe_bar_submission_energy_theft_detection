@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { MeterReadPoint } from "@/lib/api";
@@ -27,6 +27,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   useListFlaggedAccountsSuspense,
   useGetAccountDetailSuspense,
@@ -76,6 +84,7 @@ import {
   Cpu,
   Code,
   LayoutDashboard,
+  CalendarCheck,
 } from "lucide-react";
 import { ModelBadge } from "@/components/model-badge";
 import { BedrockLogo, AWS_ORANGE } from "@/components/bedrock-badge";
@@ -354,19 +363,23 @@ interface KPITileProps {
   onClick?: () => void;
   active?: boolean;
   subtitle?: string;
+  highlight?: boolean;
+  highlightDelta?: string;
 }
 
-function KPITile({ label, value, icon: Icon, color, iconColor, tooltip, onClick, active, subtitle }: KPITileProps) {
+function KPITile({ label, value, icon: Icon, color, iconColor, tooltip, onClick, active, subtitle, highlight, highlightDelta }: KPITileProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Card
           className={`relative overflow-hidden transition-all ${
             onClick ? "cursor-pointer hover:shadow-md hover:scale-[1.02]" : ""
-          } ${active ? "ring-2 ring-accent ring-offset-1" : ""}`}
+          } ${active ? "ring-2 ring-accent ring-offset-1" : ""} ${
+            highlight ? "ring-2 ring-green-500 ring-offset-1 animate-pulse" : ""
+          }`}
           onClick={onClick}
         >
-          <div className={`absolute left-0 top-0 bottom-0 w-1 ${color}`} />
+          <div className={`absolute left-0 top-0 bottom-0 w-1 ${highlight ? "bg-green-500" : color}`} />
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
@@ -374,11 +387,16 @@ function KPITile({ label, value, icon: Icon, color, iconColor, tooltip, onClick,
                   {label}
                 </p>
                 <p className="text-2xl font-bold tracking-tight">{value}</p>
-                {subtitle && (
+                {highlightDelta && (
+                  <p className="text-xs font-semibold text-green-600 animate-bounce">
+                    +{highlightDelta} just recovered
+                  </p>
+                )}
+                {!highlightDelta && subtitle && (
                   <p className="text-xs text-muted-foreground">{subtitle}</p>
                 )}
               </div>
-              <Icon className={`h-5 w-5 ${iconColor}`} />
+              <Icon className={`h-5 w-5 ${highlight ? "text-green-500" : iconColor}`} />
             </div>
           </CardContent>
         </Card>
@@ -402,6 +420,22 @@ function InvestigationKPIRow({
   activeStatusFilter: StatusFilter | null;
 }) {
   const { data: kpis } = useGetInvestigationKPIsSuspense(selector());
+  const [recoveredHighlight, setRecoveredHighlight] = useState<number | null>(null);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const amount = (e as CustomEvent<number>).detail;
+      setRecoveredHighlight(amount);
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+      highlightTimer.current = setTimeout(() => setRecoveredHighlight(null), 8000);
+    };
+    window.addEventListener("investigation-closed-theft", handler);
+    return () => {
+      window.removeEventListener("investigation-closed-theft", handler);
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    };
+  }, []);
 
   const isOpenHighActive = activeRiskFilter === "HIGH" && activeStatusFilter === "OPEN";
   const isInProgressActive = activeStatusFilter === "IN_PROGRESS" && !activeRiskFilter;
@@ -476,6 +510,8 @@ function InvestigationKPIRow({
         iconColor="text-emerald-500"
         tooltip={`Revenue recovered from confirmed theft back-billing this calendar month. ${kpis.confirmed_theft_this_month} confirmed cases, ${kpis.closed_this_month} total closed.`}
         subtitle={`${kpis.confirmed_theft_this_month} confirmed this month`}
+        highlight={recoveredHighlight !== null}
+        highlightDelta={recoveredHighlight !== null ? `£${recoveredHighlight.toLocaleString("en-GB")}` : undefined}
       />
     </div>
   );
@@ -800,6 +836,7 @@ function AccountDetailContent({ accountId }: { accountId: string }) {
 
   const [dispatch, setDispatch] = useState<DispatchReport | null>(null);
   const [scheduled, setScheduled] = useState(false);
+  const [showScheduledDialog, setShowScheduledDialog] = useState(false);
   const dispatchMutation = useGenerateDispatchReport();
 
   const handleGenerate = () => {
@@ -1030,15 +1067,61 @@ function AccountDetailContent({ accountId }: { accountId: string }) {
                   <Download className="h-3.5 w-3.5 mr-1.5" /> Download PDF
                 </Button>
                 {!scheduled ? (
-                  <Button size="sm" onClick={() => setScheduled(true)} className="flex-1">
+                  <Button size="sm" onClick={() => { setScheduled(true); setShowScheduledDialog(true); }} className="flex-1">
                     <FileText className="h-3.5 w-3.5 mr-1.5" /> Schedule Investigation
                   </Button>
                 ) : (
-                  <Button size="sm" disabled className="flex-1 bg-green-600 hover:bg-green-600">
+                  <Button size="sm" onClick={() => setShowScheduledDialog(true)} className="flex-1 bg-green-600 hover:bg-green-600 text-white">
                     <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Investigation Scheduled
                   </Button>
                 )}
               </div>
+
+              <Dialog open={showScheduledDialog} onOpenChange={setShowScheduledDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <CalendarCheck className="h-5 w-5 text-green-600" />
+                      Investigation Scheduled
+                    </DialogTitle>
+                    <DialogDescription>
+                      A field investigation has been scheduled for this account.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 py-2">
+                    <div className="rounded-lg border bg-green-50 p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Account</span>
+                        <span className="font-medium">{accountId}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Scheduled Date</span>
+                        <span className="font-medium">
+                          {new Date(Date.now() + 86400000).toLocaleDateString("en-GB", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Priority</span>
+                        <span className="font-medium text-red-600">{dispatch?.priority ?? "HIGH"}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Case Ref</span>
+                        <span className="font-mono text-xs">{dispatch?.case_reference ?? "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button size="sm" onClick={() => setShowScheduledDialog(false)} className="bg-green-600 hover:bg-green-700 text-white">
+                      Done
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         )}
@@ -1065,29 +1148,41 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
   const [outcome, setOutcome] = useState<"confirmed_theft" | "no_theft" | "inconclusive">("confirmed_theft");
   const [recoveredAmount, setRecoveredAmount] = useState("");
   const [notes, setNotes] = useState("");
+  const [closedDialog, setClosedDialog] = useState<{ outcome: string; recovered: number | null; message: string } | null>(null);
   const closeMutation = useCloseInvestigation();
   const queryClient = useQueryClient();
 
   const handleSubmit = () => {
     closeMutation.mutate(
       {
-        accountId,
-        body: {
+        params: { account_id: accountId },
+        data: {
           outcome,
-          recovered_amount: outcome === "confirmed_theft" && recoveredAmount ? parseFloat(recoveredAmount) : null,
-          notes: notes || null,
+          recovered_amount: outcome === "confirmed_theft" && recoveredAmount ? parseFloat(recoveredAmount) : undefined,
+          notes: notes || undefined,
         },
       },
       {
-        onSuccess: () => {
-          toast.success("Investigation closed successfully");
+        onSuccess: (resp) => {
           setOpen(false);
+          setClosedDialog({
+            outcome: resp.data.outcome,
+            recovered: resp.data.recovered_amount ?? null,
+            message: resp.data.message ?? "Investigation closed successfully",
+          });
+          if (resp.data.outcome === "THEFT_CONFIRMED" && resp.data.recovered_amount) {
+            window.dispatchEvent(
+              new CustomEvent("investigation-closed-theft", { detail: resp.data.recovered_amount })
+            );
+          }
           queryClient.invalidateQueries({ queryKey: listFlaggedAccountsKey() });
           queryClient.invalidateQueries({ queryKey: getInvestigationKPIsKey() });
           queryClient.invalidateQueries({ queryKey: getDashboardKPIsKey() });
         },
-        onError: () => {
-          toast.error("Failed to close investigation");
+        onError: (err: unknown) => {
+          const detail =
+            err instanceof Error ? err.message : "Unknown error";
+          toast.error(`Failed to close investigation: ${detail}`);
         },
       },
     );
@@ -1186,6 +1281,64 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={closedDialog !== null} onOpenChange={(v) => { if (!v) setClosedDialog(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Investigation Closed
+            </DialogTitle>
+            <DialogDescription>
+              The investigation outcome has been written to Lakebase.
+            </DialogDescription>
+          </DialogHeader>
+          {closedDialog && (
+            <div className="space-y-3 py-2">
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Account</span>
+                  <span className="font-medium">{accountId}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Outcome</span>
+                  <span className={`font-medium ${
+                    closedDialog.outcome === "THEFT_CONFIRMED" ? "text-red-600" :
+                    closedDialog.outcome === "FALSE_POSITIVE" ? "text-green-600" :
+                    "text-amber-600"
+                  }`}>
+                    {closedDialog.outcome === "THEFT_CONFIRMED" ? "Confirmed Theft" :
+                     closedDialog.outcome === "FALSE_POSITIVE" ? "No Theft" :
+                     "Inconclusive"}
+                  </span>
+                </div>
+                {closedDialog.recovered !== null && closedDialog.recovered > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Recovered</span>
+                    <span className="font-medium text-green-700">
+                      £{closedDialog.recovered.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Closed At</span>
+                  <span className="font-medium">
+                    {new Date().toLocaleDateString("en-GB", {
+                      day: "numeric", month: "long", year: "numeric",
+                    })}, {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">{closedDialog.message}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button size="sm" onClick={() => setClosedDialog(null)} className="bg-green-600 hover:bg-green-700 text-white">
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

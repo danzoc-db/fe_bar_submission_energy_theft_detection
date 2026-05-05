@@ -361,7 +361,7 @@ high_accounts = df_composite[df_composite["risk_tier"] == "HIGH"]["account_id"].
 all_accounts = df_composite["account_id"].tolist()
 investigators = [f"INV-{j:03d}" for j in range(1, 21)]
 
-MONTHLY_PLAN = [
+_SEED_PLAN = [
     # (year, month, total_cases, confirm_rate, monthly_recovery_target)
     # Oct-Dec 2025: ramp-up period — ML model just deployed, building case pipeline
     (2025, 10, 180, 0.55, 2_500_000),
@@ -371,9 +371,38 @@ MONTHLY_PLAN = [
     (2026,  1, 500, 0.72, 10_500_000),
     (2026,  2, 550, 0.74, 11_500_000),
     (2026,  3, 620, 0.76, 12_600_000),
-    # Apr 2026: partial month — just enough to keep current-month KPIs non-zero
-    (2026,  4,  87, 0.78, 800_000),
 ]
+
+def _build_monthly_plan() -> list[tuple]:
+    """Extend the seed plan through the current month so data is never stale.
+
+    Months beyond the seed use the last seed entry's growth trajectory
+    (cases +30/mo, confirm rate +0.01/mo capped at 0.82, recovery +500K/mo).
+    The current calendar month is scaled to the fraction of the month elapsed.
+    """
+    today = date.today()
+    plan = list(_SEED_PLAN)
+    last_yr, last_mo, last_cases, last_rate, last_recovery = plan[-1]
+
+    next_month = date(last_yr + (last_mo // 12), (last_mo % 12) + 1, 1)
+    while (next_month.year, next_month.month) <= (today.year, today.month):
+        yr, mo = next_month.year, next_month.month
+        last_cases = last_cases + 30
+        last_rate = min(last_rate + 0.01, 0.82)
+        last_recovery = last_recovery + 500_000
+        plan.append((yr, mo, last_cases, last_rate, last_recovery))
+        next_month = date(yr + (mo // 12), (mo % 12) + 1, 1)
+
+    # Scale current month by fraction of days elapsed
+    yr_cur, mo_cur = today.year, today.month
+    final = plan[-1]
+    if final[0] == yr_cur and final[1] == mo_cur:
+        days_in = (date(yr_cur + (mo_cur // 12), (mo_cur % 12) + 1, 1) - date(yr_cur, mo_cur, 1)).days
+        fraction = max(today.day / days_in, 0.15)
+        plan[-1] = (yr_cur, mo_cur, max(int(final[2] * fraction), 10), final[3], round(final[4] * fraction))
+    return plan
+
+MONTHLY_PLAN = _build_monthly_plan()
 
 case_rows = []
 case_counter = 0
