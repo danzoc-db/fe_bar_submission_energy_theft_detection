@@ -61,6 +61,11 @@ template = '''
 version = "{version}"
 '''
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires deployed Databricks workspace (deselect with -m 'not integration')",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/energy_theft_detection"]
 

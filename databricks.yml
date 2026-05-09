@@ -189,6 +189,10 @@ resources:
           serving_endpoint:
             name: "energy-theft-llama-gateway"
             permission: "CAN_QUERY"
+        - name: "mas_endpoint"
+          serving_endpoint:
+            name: "${var.mas_endpoint}"
+            permission: "CAN_QUERY"
 
   pipelines:
     medallion_pipeline:
@@ -309,9 +313,20 @@ resources:
               sql_warehouse_id: "${var.sql_warehouse_id}"
               app_name: "energy-theft-detection"
           environment_key: "default_env"
-        - task_key: "run_genie_benchmarks"
+        - task_key: "configure_agent_atlas"
           depends_on:
             - task_key: "configure_genie"
+          notebook_task:
+            notebook_path: "./notebooks/08_configure_agent_atlas.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+              genie_space_id: "${var.genie_space_id}"
+              app_name: "energy-theft-detection"
+          environment_key: "default_env"
+        - task_key: "run_genie_benchmarks"
+          depends_on:
+            - task_key: "configure_agent_atlas"
           notebook_task:
             notebook_path: "./notebooks/07_run_genie_benchmarks.py"
             base_parameters:
@@ -364,6 +379,9 @@ variables:
     default: "energy-theft-fmapi"
   genie_space_id:
     description: "Genie Space ID for executive NL queries (required per workspace)"
+  mas_endpoint:
+    description: "MAS serving endpoint name for Agent Atlas board reports (created by 08_configure_agent_atlas)"
+    default: ""
 targets:
   dev:
     default: true
@@ -376,6 +394,7 @@ targets:
       catalog: "dz_demos"
       sql_warehouse_id: "148ccb90800933a1"
       genie_space_id: "01f127aafc2e10a89200349aa20fa460"
+      mas_endpoint: ""
     resources:
       apps:
         energy-theft-detection-app:
@@ -399,6 +418,10 @@ targets:
             - name: "llama_endpoint"
               serving_endpoint:
                 name: "energy-theft-llama-gateway"
+                permission: "CAN_QUERY"
+            - name: "mas_endpoint"
+              serving_endpoint:
+                name: "${var.mas_endpoint}"
                 permission: "CAN_QUERY"
             - name: "genie-space"
               genie_space:
@@ -410,11 +433,12 @@ targets:
       profile: azsu-centrica-demo
     artifacts:
       default:
-        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py azsu_centrica_demo && python3 scripts/verify_app_permissions.py --profile azsu-centrica-demo --catalog azsu_centrica_demo --fix"
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py azsu_centrica_demo mas-c41b54be-endpoint && python3 scripts/verify_app_permissions.py --profile azsu-centrica-demo --catalog azsu_centrica_demo --fix"
     variables:
       catalog: "azsu_centrica_demo"
       sql_warehouse_id: "16de76f2a615a8aa"
       genie_space_id: "01f137845bff15e1a08bb2ee463075b5"
+      mas_endpoint: "mas-c41b54be-endpoint"
     resources:
       apps:
         energy-theft-detection-app:
@@ -438,6 +462,10 @@ targets:
             - name: "llama_endpoint"
               serving_endpoint:
                 name: "energy-theft-llama-gateway"
+                permission: "CAN_QUERY"
+            - name: "mas_endpoint"
+              serving_endpoint:
+                name: "${var.mas_endpoint}"
                 permission: "CAN_QUERY"
             - name: "genie-space"
               genie_space:
@@ -454,6 +482,7 @@ targets:
       catalog: "dz_demos"
       sql_warehouse_id: "148ccb90800933a1"
       genie_space_id: "01f127aafc2e10a89200349aa20fa460"
+      mas_endpoint: ""
     resources:
       apps:
         energy-theft-detection-app:
@@ -477,6 +506,10 @@ targets:
             - name: "llama_endpoint"
               serving_endpoint:
                 name: "energy-theft-llama-gateway"
+                permission: "CAN_QUERY"
+            - name: "mas_endpoint"
+              serving_endpoint:
+                name: "${var.mas_endpoint}"
                 permission: "CAN_QUERY"
             - name: "genie-space"
               genie_space:

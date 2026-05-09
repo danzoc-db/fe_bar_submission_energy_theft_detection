@@ -686,7 +686,7 @@ function InvestigationOutcomesCard() {
           <div className="flex gap-3 text-xs">
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#FF3621" }} /> Confirmed theft</span>
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-gray-300" /> Flagged cases</span>
-            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#002F87" }} /> Hit rate %</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#2B6CB0" }} /> Hit rate %</span>
           </div>
         </div>
       </CardHeader>
@@ -717,8 +717,8 @@ function InvestigationOutcomesCard() {
                 x: months,
                 y: confirmRate,
                 yaxis: "y2",
-                line: { color: "#002F87", width: 2.5, shape: "spline" as const },
-                marker: { size: 5, color: "#002F87" },
+                line: { color: "#2B6CB0", width: 2.5, shape: "spline" as const },
+                marker: { size: 5, color: "#2B6CB0" },
                 hovertemplate: "<b>%{x}</b><br>Hit rate: %{y:.1f}%<extra></extra>",
               },
             ]}
@@ -739,8 +739,8 @@ function InvestigationOutcomesCard() {
                 zeroline: false,
               },
               yaxis2: {
-                title: { text: "Hit rate (%)", font: { size: 11, color: "#002F87" } },
-                tickfont: { size: 10, color: "#002F87" },
+                title: { text: "Hit rate (%)", font: { size: 11, color: "#2B6CB0" } },
+                tickfont: { size: 10, color: "#2B6CB0" },
                 overlaying: "y" as const,
                 side: "right" as const,
                 range: [0, 100],
@@ -753,7 +753,7 @@ function InvestigationOutcomesCard() {
                   type: "line" as const,
                   x0: ML_DEPLOY_LABEL, x1: ML_DEPLOY_LABEL,
                   y0: 0, y1: 1, yref: "paper" as const,
-                  line: { color: "#002F87", width: 2, dash: "dash" as const },
+                  line: { color: "#2B6CB0", width: 2, dash: "dash" as const },
                 },
               ] : [],
               annotations: mlDeployIdx >= 0 ? [
@@ -766,8 +766,8 @@ function InvestigationOutcomesCard() {
                   arrowhead: 0,
                   ax: 40,
                   ay: -25,
-                  font: { size: 9, color: "#002F87", family: "inherit" },
-                  bordercolor: "#002F87",
+                  font: { size: 9, color: "#2B6CB0", family: "inherit" },
+                  bordercolor: "#2B6CB0",
                   borderwidth: 1,
                   borderpad: 3,
                   bgcolor: "rgba(255,255,255,0.9)",
@@ -878,8 +878,8 @@ const GENIE_FEATURES = [
     icon: BrainCircuit,
     title: "Knows the language of your business",
     desc: "Reads table schemas, column descriptions, and metric view definitions in Unity Catalog",
-    iconBg: "bg-[#002F87]/10",
-    iconColor: "text-[#002F87]",
+    iconBg: "bg-[#2B6CB0]/10",
+    iconColor: "text-[#2B6CB0]",
   },
   {
     icon: NotebookPen,
@@ -959,11 +959,11 @@ function GenieInline() {
   return (
     <Card className="overflow-hidden">
       {/* Header */}
-      <div className="bg-[#002F87] text-white px-6 py-4">
+      <div className="bg-[#2B6CB0] text-white px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center">
-              <Sparkles className="h-4.5 w-4.5 text-[#0093F5]" />
+              <Sparkles className="h-4.5 w-4.5 text-[#E8700A]" />
             </div>
             <div>
               <h3 className="font-semibold text-base">Ask Genie</h3>

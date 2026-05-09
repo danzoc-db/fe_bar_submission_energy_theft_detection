@@ -625,7 +625,7 @@ const LINEAGE_EDGES: LineageEdge[] = [
 
 const NODE_BORDER_COLOR: Record<NodeKind, string> = {
   source: "border-l-accent",
-  ml: "border-l-[#002F87]",
+  ml: "border-l-[#2B6CB0]",
   scored: "border-l-orange-500",
   llm: "border-l-[#FF9900]",
   outcome: "border-l-emerald-500",
@@ -633,7 +633,7 @@ const NODE_BORDER_COLOR: Record<NodeKind, string> = {
 
 const NODE_HEADER_BADGE: Record<NodeKind, { label: string; cls: string }> = {
   source: { label: "Source", cls: "bg-accent/10 text-accent border-accent/30" },
-  ml: { label: "ML Model", cls: "bg-[#002F87]/10 text-[#002F87] border-[#002F87]/30 dark:text-blue-300" },
+  ml: { label: "ML Model", cls: "bg-[#2B6CB0]/10 text-[#2B6CB0] border-[#2B6CB0]/30 dark:text-blue-300" },
   scored: { label: "Scored", cls: "bg-orange-500/10 text-orange-600 border-orange-500/30" },
   llm: { label: "LLM", cls: "bg-[#FF9900]/10 text-[#FF9900] border-[#FF9900]/30" },
   outcome: { label: "Output", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" },

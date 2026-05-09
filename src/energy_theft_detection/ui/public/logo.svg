@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
-  <rect width="100" height="100" fill="#223C7E" rx="15" ry="15"/>
+  <rect width="100" height="100" fill="#1E5A9E" rx="15" ry="15"/>
   <!-- Flame -->
   <path fill="#FF6B00" d="M50,15 C42,30 30,40 28,55 C26,68 35,80 50,85 C65,80 74,68 72,55 C70,40 58,30 50,15z"/>
   <path fill="#FFB347" d="M50,32 C46,42 38,48 37,57 C36,66 41,74 50,77 C59,74 64,66 63,57 C62,48 54,42 50,32z"/>
