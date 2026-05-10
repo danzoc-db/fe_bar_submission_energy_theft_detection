@@ -197,7 +197,7 @@ function InvestigationPage() {
         </div>
 
         {/* Operational KPIs */}
-        <div>
+        <div id="investigation-kpis">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             Today's Operations
           </h2>
@@ -1170,11 +1170,6 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
             recovered: resp.data.recovered_amount ?? null,
             message: resp.data.message ?? "Investigation closed successfully",
           });
-          if (resp.data.outcome === "THEFT_CONFIRMED" && resp.data.recovered_amount) {
-            window.dispatchEvent(
-              new CustomEvent("investigation-closed-theft", { detail: resp.data.recovered_amount })
-            );
-          }
           queryClient.invalidateQueries({ queryKey: listFlaggedAccountsKey() });
           queryClient.invalidateQueries({ queryKey: getInvestigationKPIsKey() });
           queryClient.invalidateQueries({ queryKey: getDashboardKPIsKey() });
@@ -1282,7 +1277,19 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
         </Card>
       )}
 
-      <Dialog open={closedDialog !== null} onOpenChange={(v) => { if (!v) setClosedDialog(null); }}>
+      <Dialog open={closedDialog !== null} onOpenChange={(v) => {
+        if (!v) {
+          const wasTh = closedDialog?.outcome === "THEFT_CONFIRMED" && closedDialog?.recovered;
+          const amt = closedDialog?.recovered;
+          setClosedDialog(null);
+          if (wasTh && amt) {
+            document.getElementById("investigation-kpis")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("investigation-closed-theft", { detail: amt }));
+            }, 400);
+          }
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1333,7 +1340,17 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
             </div>
           )}
           <DialogFooter>
-            <Button size="sm" onClick={() => setClosedDialog(null)} className="bg-green-600 hover:bg-green-700 text-white">
+            <Button size="sm" onClick={() => {
+              const wasTh = closedDialog?.outcome === "THEFT_CONFIRMED" && closedDialog?.recovered;
+              const amt = closedDialog?.recovered;
+              setClosedDialog(null);
+              if (wasTh && amt) {
+                document.getElementById("investigation-kpis")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent("investigation-closed-theft", { detail: amt }));
+                }, 400);
+              }
+            }} className="bg-green-600 hover:bg-green-700 text-white">
               Done
             </Button>
           </DialogFooter>
