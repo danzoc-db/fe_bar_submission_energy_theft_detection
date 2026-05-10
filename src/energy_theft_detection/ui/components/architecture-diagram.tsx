@@ -4,11 +4,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  ArrowLeftRight,
   ArrowRight,
   BarChart3,
   Brain,
   Cloud,
   Database,
+  HardDrive,
   Lock,
   Monitor,
   Shield,
@@ -247,18 +249,35 @@ export function ArchitectureDiagram() {
             </Tooltip>
           </div>
 
-          {/* Arrow */}
+          {/* Bi-directional arrow: Lakehouse ↔ Serving (Lakebase sync + reads) */}
           <div className="flex items-center justify-center px-1.5 pt-6">
-            <ArrowRight className="h-5 w-5 text-muted-foreground/30" />
+            <ArrowLeftRight className="h-5 w-5 text-muted-foreground/30" />
           </div>
 
-          {/* Column 3: DB SQL + Genie + Bedrock */}
+          {/* Column 3: Lakebase + DB SQL + Genie + Model Serving */}
           <div className="flex flex-col gap-3">
             <div className="space-y-2 px-1 flex-1">
-              <div className="flex items-center gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="rounded-lg border border-[#7B2FF7]/40 bg-[#7B2FF7]/[0.06] px-3 py-2.5 text-center cursor-help flex-1 hover:border-[#7B2FF7]/60 transition-colors">
+                    <div className="rounded-lg border border-[#0093F5]/40 bg-[#0093F5]/[0.06] px-2 py-2.5 text-center cursor-help hover:border-[#0093F5]/60 transition-colors">
+                      <HardDrive className="h-5 w-5 text-[#0093F5] mx-auto mb-1" />
+                      <p className="text-xs font-bold text-[#0093F5]">Lakebase</p>
+                      <p className="text-xs font-bold text-foreground">Case OLTP</p>
+                      <p className="text-[10px] text-muted-foreground">low-latency R/W</p>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[300px] text-xs space-y-1">
+                    <p className="font-semibold">Lakebase — Managed PostgreSQL</p>
+                    <p>Low-latency OLTP database for case management interactions. The app reads/writes investigation cases here for instant response times.</p>
+                    <p><strong>Forward ETL (Lakehouse Sync)</strong> replicates closed cases to Delta tables for executive reporting and Genie analytics.</p>
+                    <p><strong>Reverse ETL</strong> syncs ML scoring outputs (risk tiers, anomaly scores) from the Lakehouse into Lakebase so the app serves fresh model results at OLTP speed.</p>
+                    <p className="text-muted-foreground italic">Sub-10ms reads · transactional writes · bi-directional sync</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="rounded-lg border border-[#7B2FF7]/40 bg-[#7B2FF7]/[0.06] px-2 py-2.5 text-center cursor-help hover:border-[#7B2FF7]/60 transition-colors">
                       <Database className="h-5 w-5 text-[#7B2FF7] mx-auto mb-1" />
                       <p className="text-xs font-bold text-[#7B2FF7]">DB SQL</p>
                       <p className="text-xs font-bold text-foreground">Enterprise DW</p>
@@ -267,14 +286,14 @@ export function ArchitectureDiagram() {
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-[300px] text-xs space-y-1">
                     <p className="font-semibold">Databricks SQL — Enterprise Data Warehouse</p>
-                    <p>Serverless SQL Warehouse that stores and serves all Gold-layer tables and Metric Views. The compute engine behind every query — whether from Genie, the App, or direct SQL.</p>
+                    <p>Serverless SQL Warehouse powering executive dashboards, Metric Views, and analytical queries. Lakehouse Sync moves closed-case data here for reporting.</p>
                     <p><strong>Metric Views materialised every 6h</strong> — theft_detection_metrics, risk_exposure_metrics</p>
                     <p className="text-muted-foreground italic">Serverless · auto-scales · zero idle cost · Photon-accelerated</p>
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="rounded-lg border border-[#10B981]/40 bg-[#10B981]/[0.06] px-3 py-2.5 text-center cursor-help flex-1 hover:border-[#10B981]/60 transition-colors">
+                    <div className="rounded-lg border border-[#10B981]/40 bg-[#10B981]/[0.06] px-2 py-2.5 text-center cursor-help hover:border-[#10B981]/60 transition-colors">
                       <Sparkles className="h-5 w-5 text-[#10B981] mx-auto mb-1" />
                       <p className="text-xs font-bold text-[#10B981]">Genie</p>
                       <p className="text-xs font-bold text-foreground">NL → SQL</p>
@@ -295,30 +314,30 @@ export function ArchitectureDiagram() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="rounded-lg border bg-card px-3 py-2 text-center cursor-help hover:border-[#FF9900]/40 transition-colors mt-auto">
-                  <p className="text-xs font-semibold text-foreground">DB SQL · Genie · Model Serving</p>
-                  <p className="text-[10px] text-muted-foreground">AI Gateway · Guardrails · Inference Tables</p>
+                  <p className="text-xs font-semibold text-foreground">Lakebase · DB SQL · Genie · Model Serving</p>
+                  <p className="text-[10px] text-muted-foreground">AI Gateway · Guardrails · Lakehouse Sync</p>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[300px] text-xs space-y-1">
-                <p className="font-semibold">Databricks SQL + AI Gateway</p>
-                <p>DB SQL is the serverless enterprise data warehouse. Genie queries it via natural language. AI Gateway proxies external LLM calls with guardrails.</p>
+                <p className="font-semibold">Serving & Intelligence Layer</p>
+                <p>Lakebase serves low-latency case interactions (OLTP). Lakehouse Sync moves closed cases to DB SQL for analytical reporting. Genie queries the Lakehouse via natural language. AI Gateway proxies LLM calls with guardrails.</p>
                 <p>Every query and LLM call is auditable — stored in Unity Catalog inference tables.</p>
               </TooltipContent>
             </Tooltip>
           </div>
 
-          {/* Arrow */}
+          {/* Bi-directional arrow: App ↔ DB SQL + Lakebase + Genie + Model Serving */}
           <div className="flex items-center justify-center px-1.5 pt-6">
-            <ArrowRight className="h-5 w-5 text-muted-foreground/30" />
+            <ArrowLeftRight className="h-5 w-5 text-muted-foreground/30" />
           </div>
 
-          {/* Column 4: Databricks App */}
+          {/* Column 4: Databricks App — stretches full height to align with serving layer */}
           <div className="flex flex-col gap-3">
-            <div className="px-1 flex-1 flex items-start">
+            <div className="px-1 flex-1 flex items-stretch">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="rounded-lg border border-primary/30 bg-primary/[0.04] px-3 py-2.5 text-center cursor-help hover:border-primary/50 transition-colors w-full">
-                    <Monitor className="h-5 w-5 text-primary mx-auto mb-1" />
+                  <div className="rounded-lg border border-primary/30 bg-primary/[0.04] px-3 py-2.5 text-center cursor-help hover:border-primary/50 transition-colors w-full flex flex-col items-center justify-center">
+                    <Monitor className="h-5 w-5 text-primary mb-1" />
                     <p className="text-sm font-bold text-foreground">Databricks</p>
                     <p className="text-sm font-bold text-foreground">App</p>
                     <p className="text-[10px] text-muted-foreground">3 views</p>

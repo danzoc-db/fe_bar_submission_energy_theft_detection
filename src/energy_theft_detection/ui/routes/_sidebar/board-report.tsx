@@ -544,24 +544,15 @@ function AgentAtlasHood() {
   return (
     <UnderTheHood title="Agent Atlas — Multi-Agent Supervisor">
       <HoodSection title="How it works" icon={Bot}>
-        <HoodBullet icon={Database} bold="Genie collects data">
-          Natural language queries hit the Genie Space to pull KPIs, trends, and regional breakdowns from UC Metric Views — no SQL needed.
-        </HoodBullet>
-        <HoodBullet icon={Globe} bold="Gemini provides market context">
-          Google Gemini 2.0 Flash (via a separate AI Gateway endpoint) analyses UK energy theft market data, regulatory landscape, and industry benchmarks — a different cloud provider, same governance.
-        </HoodBullet>
-        <HoodBullet icon={Brain} bold="Bedrock writes the narrative">
-          All collected data — Genie KPIs + Gemini market intelligence — is passed to Claude 3.5 Haiku (Bedrock/AWS) via AI Gateway. Two LLM providers, one supervisor, one governance layer.
+        <HoodBullet icon={Database} bold="Multi-agent orchestration">
+          The supervisor routes queries to Genie (NL→SQL over UC Metric Views), Gemini (market intelligence via Google), and Bedrock (narrative via AWS) — two LLM providers, one governance layer, all via AI Gateway.
         </HoodBullet>
         <HoodBullet icon={Shield} bold="Governed end-to-end">
-          Every Genie query runs against governed UC tables. Every LLM call — Bedrock and Gemini — is logged with token usage, latency, and guardrail status in inference tables. Same PII filters, same audit trail.
+          Every Genie query runs against governed UC tables. Every LLM call is logged with token usage, latency, and guardrail status in inference tables. Same PII filters, same audit trail.
         </HoodBullet>
       </HoodSection>
 
       <HoodSection title="Agent Bricks" icon={Blocks}>
-        <HoodBullet icon={Blocks} bold="Pre-built AI tiles">
-          Three composable brick types — Knowledge Assistants (RAG over documents), Genie Spaces (NL→SQL), and Supervisor Agents (multi-agent orchestration) — wired together declaratively.
-        </HoodBullet>
         <HoodBullet icon={GitBranch} bold="Supervisor routing">
           The supervisor automatically routes each sub-question to the right agent (Genie for data, KA for policy docs, Bedrock for narrative), then assembles the final output. No manual LangChain DAG wiring.
         </HoodBullet>

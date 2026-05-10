@@ -109,14 +109,60 @@ _CLOSE_AFFECTED_KEYS = [
 ]
 
 
-def _invalidate_after_close(db: "SQLClient") -> None:
-    """Selectively invalidate cache keys affected by a close operation, then
-    re-warm them in a background thread so the next read is instant."""
+def _optimistic_cache_update(
+    outcome: str,
+    recovered: float | None,
+) -> None:
+    """Optimistically patch cached KPIs with the known close delta so the
+    next frontend read is instant — no SQL round-trip required.
+
+    The background thread will eventually re-warm the cache with real data,
+    but the user sees the change immediately.
+    """
+    from .models import InvestigationKPIs, DashboardKPIs
+
+    is_theft = outcome == "THEFT_CONFIRMED"
+    rec_amt = recovered or 0.0
+
+    inv = _cache_get("investigation_kpis")
+    if isinstance(inv, InvestigationKPIs):
+        updated = inv.model_copy(update={
+            "open_high_cases": max(inv.open_high_cases - 1, 0),
+            "closed_this_month": inv.closed_this_month + 1,
+            "confirmed_theft_this_month": inv.confirmed_theft_this_month + (1 if is_theft else 0),
+            "revenue_recovered_this_month_gbp": inv.revenue_recovered_this_month_gbp + rec_amt,
+            "precision_rate_pct": round(
+                (inv.confirmed_theft_this_month + (1 if is_theft else 0))
+                * 100.0
+                / max(inv.closed_this_month + 1, 1),
+                1,
+            ),
+        })
+        _cache_set("investigation_kpis", updated)
+
+    dash = _cache_get("dashboard_kpis")
+    if isinstance(dash, DashboardKPIs):
+        new_ytd = dash.revenue_recovered_ytd_gbp + rec_amt
+        updated_dash = dash.model_copy(update={
+            "revenue_recovered_ytd_gbp": new_ytd,
+            "recovery_rate_pct": round(
+                new_ytd * 100.0 / max(dash.recovery_target_gbp, 1), 1
+            ),
+        })
+        _cache_set("dashboard_kpis", updated_dash)
+
+    stale_keys = [k for k in _cache if k.startswith("flagged_accounts:")]
+    for k in stale_keys:
+        _cache.pop(k, None)
+
+
+def _invalidate_and_rewarm(db: "SQLClient") -> None:
+    """Full cache invalidation + SQL re-warm. Runs in background thread
+    after the SQL writes complete so the cache converges to truth."""
     import threading
 
     for key in _CLOSE_AFFECTED_KEYS:
         _cache.pop(key, None)
-    # Also invalidate any flagged_accounts cache entries
     stale_keys = [k for k in _cache if k.startswith("flagged_accounts:")]
     for k in stale_keys:
         _cache.pop(k, None)
@@ -1158,7 +1204,12 @@ async def list_flagged_accounts(
     operation_id="getAccountDetail",
 )
 async def get_account_detail(request: Request, account_id: str):
-    """Full account detail with anomaly signals."""
+    """Full account detail with anomaly signals.
+
+    Optimised: the main account query now includes score_timestamp, and
+    the meter-reads + cohort-reads queries run in parallel via ThreadPool
+    to cut latency from 4 sequential round-trips to 1 + 1 parallel pair.
+    """
     cache_key = f"account_detail:{account_id}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -1173,7 +1224,7 @@ async def get_account_detail(request: Request, account_id: str):
               a.composite_risk_score, a.consumption_drop_pct,
               a.comms_gap_count_30d,
               a.isolation_forest_score, a.lstm_deviation_score,
-              a.cohort_deviation_score
+              a.cohort_deviation_score, a.score_timestamp
             FROM anomaly_scores a
             JOIN property_reference pr ON a.account_id = pr.account_id
             WHERE a.account_id = '{account_id}'
@@ -1188,17 +1239,11 @@ async def get_account_detail(request: Request, account_id: str):
             drop = min(100.0, max(0.0, float(r["consumption_drop_pct"])))
             fuel = r["fuel_type"]
             postcode_sector = r["postcode"]
+            anomaly_onset = r.get("score_timestamp")
 
-            score_ts_rows = db.execute(f"""
-                SELECT score_timestamp FROM anomaly_scores
-                WHERE account_id = '{account_id}'
-                LIMIT 1
-            """)
-            anomaly_onset = None
-            if score_ts_rows and score_ts_rows[0].get("score_timestamp"):
-                anomaly_onset = score_ts_rows[0]["score_timestamp"]
+            from concurrent.futures import ThreadPoolExecutor
 
-            meter_rows = db.execute(f"""
+            meter_sql = f"""
                 SELECT DATE(read_timestamp) AS day,
                        AVG(consumption_kwh) AS avg_kwh,
                        MAX(read_quality) AS read_quality
@@ -1207,18 +1252,8 @@ async def get_account_detail(request: Request, account_id: str):
                   AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
                 GROUP BY DATE(read_timestamp)
                 ORDER BY day
-            """) or []
-
-            meter_reads = [
-                MeterReadPoint(
-                    read_timestamp=mr["day"],
-                    consumption_kwh=float(mr["avg_kwh"]),
-                    read_quality=mr["read_quality"] or "actual",
-                )
-                for mr in meter_rows
-            ]
-
-            cohort_rows = db.execute(f"""
+            """
+            cohort_sql = f"""
                 SELECT DATE(read_timestamp) AS day,
                        AVG(consumption_kwh) AS avg_kwh
                 FROM smart_meter_reads
@@ -1228,7 +1263,22 @@ async def get_account_detail(request: Request, account_id: str):
                   AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
                 GROUP BY DATE(read_timestamp)
                 ORDER BY day
-            """) or []
+            """
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                fut_meter = pool.submit(db.execute, meter_sql)
+                fut_cohort = pool.submit(db.execute, cohort_sql)
+                meter_rows = fut_meter.result(timeout=30) or []
+                cohort_rows = fut_cohort.result(timeout=30) or []
+
+            meter_reads = [
+                MeterReadPoint(
+                    read_timestamp=mr["day"],
+                    consumption_kwh=float(mr["avg_kwh"]),
+                    read_quality=mr["read_quality"] or "actual",
+                )
+                for mr in meter_rows
+            ]
 
             cohort_avg_reads = [
                 MeterReadPoint(
@@ -1315,7 +1365,11 @@ def _est_monthly_loss(drop_pct: float, score: float) -> float:
     operation_id="getCaseSummary",
 )
 async def get_case_summary(request: Request, account_id: str):
-    """Generate LLM case summary for a flagged account via AI Gateway."""
+    """Generate LLM case summary for a flagged account via AI Gateway.
+
+    Optimised: both anomaly_scores and investigation_cases are queried in
+    parallel via ThreadPool to halve the latency.
+    """
     cache_key = f"case_summary:{account_id}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -1330,14 +1384,28 @@ async def get_case_summary(request: Request, account_id: str):
     gaps = 0
 
     if db:
-        rows = db.execute(f"""
+        from concurrent.futures import ThreadPoolExecutor
+
+        anomaly_sql = f"""
             SELECT composite_risk_score, consumption_drop_pct,
                    comms_gap_count_30d, risk_tier,
                    isolation_forest_score, lstm_deviation_score
             FROM anomaly_scores
             WHERE account_id = '{account_id}'
             LIMIT 1
-        """)
+        """
+        case_sql = f"""
+            SELECT llm_summary FROM investigation_cases
+            WHERE account_id = '{account_id}'
+            LIMIT 1
+        """
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_anomaly = pool.submit(db.execute, anomaly_sql)
+            fut_case = pool.submit(db.execute, case_sql)
+            rows = fut_anomaly.result(timeout=30)
+            case_rows = fut_case.result(timeout=30)
+
         if rows:
             r = rows[0]
             risk_level = r["risk_tier"]
@@ -1351,11 +1419,6 @@ async def get_case_summary(request: Request, account_id: str):
                 f"LSTM deviation: {float(r['lstm_deviation_score']):.2f}",
             ]
 
-        case_rows = db.execute(f"""
-            SELECT llm_summary FROM investigation_cases
-            WHERE account_id = '{account_id}'
-            LIMIT 1
-        """)
         if case_rows and case_rows[0].get("llm_summary"):
             raw = case_rows[0]["llm_summary"]
             cs_result = LLMCaseSummary(
@@ -1692,6 +1755,8 @@ async def close_investigation(request: Request, account_id: str, body: Investiga
         WHERE account_id = '{account_id}'
     """
 
+    _optimistic_cache_update(db_outcome, recovered)
+
     import threading
 
     def _write_and_rewarm():
@@ -1709,11 +1774,9 @@ async def close_investigation(request: Request, account_id: str, body: Investiga
                 except Exception as e:
                     logger.warning(f"Close investigation anomaly_scores update failed for {account_id}: {e}")
         finally:
-            _invalidate_after_close(db)
+            _invalidate_and_rewarm(db)
 
     threading.Thread(target=_write_and_rewarm, daemon=True).start()
-
-    _invalidate_after_close(db)
 
     return InvestigationCloseResponse(
         success=True,

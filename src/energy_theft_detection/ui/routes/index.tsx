@@ -88,9 +88,9 @@ const METRICS: readonly { value: string; label: string; source: React.ReactNode 
     label: "ML-recoverable",
     source: (
       <>
-        30% ML-assisted recovery rate × £323M exposure = £97M — equivalent to 59% of UKI Gas divisional profit. Conservative benchmark: Rome-based{" "}
+        30% ML-assisted recovery rate × £323M exposure = £97M — equivalent to 59% of UKI Gas divisional profit. Conservative benchmark:{" "}
         <a href={ENEL_CASE_STUDY_URL} target="_blank" rel="noopener noreferrer" className="underline font-bold text-white hover:text-white/80">
-          Enel, the world's largest utility, achieved 70–300% improvement in recovery per inspection across 20M+ smart meters in Italy and Spain
+          Enel, Europe's largest utility, achieved a 70% improvement in energy recovered per inspection across 20M+ smart meters in Italy
         </a>.
       </>
     ),
@@ -109,9 +109,9 @@ const GROUP_METRICS = [
     source: "£323M UKI Gas theft exposure ÷ £814M Group adj. operating profit = 40%. This is scale context, not a direct P&L line: theft losses are partially socialised via bad-debt provisions and network charging, and recovery rates are typically ~40%. The figure shows the magnitude of the problem relative to Group earnings, not a pound-for-pound profit drag.",
   },
   {
-    value: "70–300%",
+    value: "70%",
     label: "ML recovery uplift at scale",
-    source: "Enel's deployment of ML-based detection across 20 million smart meters — using 500+ features from seven source systems — delivered a 70% improvement in energy recovered per inspection in Italy and over 300% in Spain (Enel/C3.ai), demonstrating that the approach scales.",
+    source: "Enel's deployment of ML-based detection across 20 million smart meters in Italy — using 500+ features from seven source systems — delivered a 70% improvement in energy recovered per inspection (Enel/C3.ai), demonstrating that the approach scales.",
   },
   {
     value: "12%",
@@ -295,7 +295,7 @@ function Index() {
               <p className="text-xl md:text-2xl font-medium max-w-3xl mx-auto leading-relaxed text-foreground text-center">
                 How might UKI Gas turn{" "}
                 <span className="text-accent font-bold">£323M</span> of loss exposure into
-                recovered revenue, faster, with Data & AI?
+                recovered revenue, faster, with Data Intelligence?
               </p>
             </div>
           </div>

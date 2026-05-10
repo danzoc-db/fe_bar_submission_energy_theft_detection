@@ -143,7 +143,7 @@ for i in range(NUM_ACCOUNTS):
             fuel,
             random.choices(["smart", "traditional", "prepayment"], weights=[0.70, 0.20, 0.10], k=1)[0],
             date(2020, 1, 1) + timedelta(days=random.randint(0, 1800)),
-            datetime(2026, 3, 17, 0, 0, 0),
+            datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),
             BUSINESS_UNIT,
         ))
 
@@ -193,7 +193,7 @@ for i, aid in enumerate(tampered_list):
 
 prop_lookup = {r[0]: (r[1], r[2], r[3], r[4]) for r in property_rows}
 
-start_date = datetime(2025, 12, 18, 0, 0, 0)  # 90 days before 2026-03-17
+start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=DAYS_OF_READS)
 BATCH_SIZE = 500
 
 print(f"Generating reads for {NUM_ACCOUNTS:,} accounts ({DAYS_OF_READS} days, sample every {SAMPLE_FACTOR}th half-hour)...")
