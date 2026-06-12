@@ -29,6 +29,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { ModelBadge } from "@/components/model-badge";
 import {
   Activity,
@@ -47,6 +48,7 @@ import {
   GitBranch,
   Lock,
   ShieldCheck,
+  LayoutDashboard,
 } from "lucide-react";
 import {
   useGetPIIMatrixSuspense,
@@ -54,6 +56,7 @@ import {
   useGetAIGatewayAuditSuspense,
   useGetAuditSummarySuspense,
   useGetColumnMetadataSuspense,
+  useGetExternalLineage,
   getAIComponents,
   getAIComponentsKey,
   getPIIMatrix,
@@ -75,6 +78,8 @@ import {
   type AIComponentRegistryItem,
   type AIGatewayAuditEntry,
   type ColumnMetadata,
+  type ExternalLineageEdge,
+  type ExternalLineageNode,
   type PIIFieldAccess,
 } from "@/lib/api";
 import selector from "@/lib/selector";
@@ -460,7 +465,11 @@ function PIIMatrix() {
 // ---------------------------------------------------------------------------
 
 type PiiTag = "PII" | "Quasi-PII" | "PII (derived)" | "PII (staff)" | null;
-type NodeKind = "source" | "ml" | "scored" | "llm" | "outcome";
+type NodeKind = "source" | "ml" | "scored" | "llm" | "outcome" | "external_bi";
+
+// Power BI accent — used for the external_bi node border, badge, roadmap
+// callout, and edge stroke when the External Lineage toggle is on.
+const POWER_BI_YELLOW = "#F2C811";
 
 interface LineageColumn {
   name: string;
@@ -475,6 +484,10 @@ interface LineageNode {
   databricksUrl: string;
   description: string;
   icon: typeof DatabaseIcon;
+  // External BI-only metadata. Present iff kind === "external_bi".
+  externalUrl?: string;
+  entityType?: "dashboard" | "report";
+  externalBadge?: string; // e.g. "Power BI · Dashboard"
 }
 
 interface LineageEdge {
@@ -629,6 +642,7 @@ const NODE_BORDER_COLOR: Record<NodeKind, string> = {
   scored: "border-l-orange-500",
   llm: "border-l-[#FF9900]",
   outcome: "border-l-emerald-500",
+  external_bi: "border-l-[#F2C811]",
 };
 
 const NODE_HEADER_BADGE: Record<NodeKind, { label: string; cls: string }> = {
@@ -637,6 +651,7 @@ const NODE_HEADER_BADGE: Record<NodeKind, { label: string; cls: string }> = {
   scored: { label: "Scored", cls: "bg-orange-500/10 text-orange-600 border-orange-500/30" },
   llm: { label: "LLM", cls: "bg-[#FF9900]/10 text-[#FF9900] border-[#FF9900]/30" },
   outcome: { label: "Output", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" },
+  external_bi: { label: "Power BI", cls: "bg-[#F2C811]/10 text-[#A38000] border-[#F2C811]/40 dark:text-[#F2C811]" },
 };
 
 function piiColor(pii: PiiTag) {
@@ -656,13 +671,55 @@ function piiEdgeStroke(pii: PiiTag) {
   return "#dc2626";
 }
 
+// ---------------------------------------------------------------------------
+// External Lineage merge — Power BI reports as a 5th DAG column
+// ---------------------------------------------------------------------------
+
+function buildExternalNodes(extNodes: ExternalLineageNode[]): LineageNode[] {
+  return extNodes.map((n) => ({
+    id: n.name,
+    label: n.display,
+    kind: "external_bi" as const,
+    icon: LayoutDashboard,
+    databricksUrl: n.url, // click-through opens the (fake) PBI report
+    description: n.description,
+    externalUrl: n.url,
+    entityType: (n.entity_type === "dashboard" ? "dashboard" : "report") as
+      | "dashboard"
+      | "report",
+    externalBadge: `Power BI · ${
+      n.entity_type === "dashboard" ? "Dashboard" : "Report"
+    }`,
+    columns: n.columns.map((c) => ({ name: c, pii: null as PiiTag })),
+  }));
+}
+
+function buildExternalEdges(extEdges: ExternalLineageEdge[]): LineageEdge[] {
+  return extEdges.map((e) => ({
+    from: `${e.source_table}.${e.source_column}`,
+    to: `${e.target_external}.${e.target_column}`,
+    piiTraceGroup: "external_bi",
+  }));
+}
+
 function LineageDAG() {
   const { data: wsConfig } = useWorkspaceConfig();
   const { data: colMetaWrapper } = useGetColumnMetadataSuspense();
   const colMeta = colMetaWrapper?.data ?? [];
 
-  const LINEAGE_NODES = useMemo(() => {
-    if (!wsConfig) return [];
+  // External Lineage toggle — defaults OFF so the existing DAG renders
+  // exactly as today. Flipping it on fetches /api/governance/external-lineage
+  // lazily (suspense-free useQuery), then merges those nodes/edges into the
+  // existing arrays so the SVG renderer and PII trace highlighting work
+  // unchanged.
+  const [showExternal, setShowExternal] = useState<boolean>(false);
+  const externalQuery = useGetExternalLineage({
+    query: { enabled: showExternal, staleTime: 10 * 60 * 1000 },
+  } as Parameters<typeof useGetExternalLineage>[0]);
+  const externalLineage = externalQuery.data?.data;
+
+  const baseLineageNodes = useMemo(() => {
+    if (!wsConfig) return [] as LineageNode[];
     const piiLookup = buildPiiLookup(colMeta);
     const descMap = new Map<string, string>();
     const tableComments = new Map<string, string>();
@@ -673,9 +730,20 @@ function LineageDAG() {
     }
     return buildLineageNodes(wsConfig, piiLookup, descMap);
   }, [wsConfig, colMeta]);
+
+  const LINEAGE_NODES = useMemo(() => {
+    if (!showExternal || !externalLineage) return baseLineageNodes;
+    return [...baseLineageNodes, ...buildExternalNodes(externalLineage.nodes)];
+  }, [baseLineageNodes, showExternal, externalLineage]);
+
+  const allEdges = useMemo(() => {
+    if (!showExternal || !externalLineage) return LINEAGE_EDGES;
+    return [...LINEAGE_EDGES, ...buildExternalEdges(externalLineage.edges)];
+  }, [showExternal, externalLineage]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [edges, setEdges] = useState<{ x1: number; y1: number; x2: number; y2: number; piiTraceGroup?: string; pii: PiiTag }[]>([]);
+  const [edges, setEdges] = useState<{ x1: number; y1: number; x2: number; y2: number; piiTraceGroup?: string; pii: PiiTag; isExternal?: boolean }[]>([]);
   const [selectedTrace, setSelectedTrace] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<LineageNode | null>(null);
 
@@ -688,7 +756,7 @@ function LineageDAG() {
     if (!container) return;
     const calc = () => {
       const rect = container.getBoundingClientRect();
-      const newEdges = LINEAGE_EDGES.map((e) => {
+      const newEdges = allEdges.map((e) => {
         const fromEl = fieldRefs.current[e.from];
         const toEl = fieldRefs.current[e.to];
         if (!fromEl || !toEl) return null;
@@ -702,19 +770,25 @@ function LineageDAG() {
           y2: tr.top + tr.height / 2 - rect.top,
           piiTraceGroup: e.piiTraceGroup,
           pii: fromCol?.pii ?? null,
+          isExternal: e.piiTraceGroup === "external_bi",
         };
       }).filter(Boolean) as typeof edges;
       setEdges(newEdges);
     };
-    calc();
+    // Defer one frame so the new external column is in the DOM before we
+    // measure refs — otherwise the merged edges would all be null.
+    const raf = requestAnimationFrame(calc);
     const ro = new ResizeObserver(calc);
     ro.observe(container);
-    return () => ro.disconnect();
-  }, []);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [LINEAGE_NODES, allEdges]);
 
   const highlightedNodes = new Set<string>();
   if (selectedTrace) {
-    for (const e of LINEAGE_EDGES) {
+    for (const e of allEdges) {
       if (e.piiTraceGroup === selectedTrace) {
         highlightedNodes.add(e.from.split(".")[0]);
         highlightedNodes.add(e.to.split(".")[0]);
@@ -722,18 +796,24 @@ function LineageDAG() {
     }
   }
 
-  const columns = [
-    { label: "Source", kinds: ["source"] as NodeKind[] },
-    { label: "ML Models", kinds: ["ml"] as NodeKind[] },
-    { label: "Scored Output", kinds: ["scored"] as NodeKind[] },
-    { label: "LLM / Outputs", kinds: ["llm", "outcome"] as NodeKind[] },
-  ];
+  const columns = useMemo(() => {
+    const base: { label: string; kinds: NodeKind[] }[] = [
+      { label: "Source", kinds: ["source"] },
+      { label: "ML Models", kinds: ["ml"] },
+      { label: "Scored Output", kinds: ["scored"] },
+      { label: "LLM / Outputs", kinds: ["llm", "outcome"] },
+    ];
+    if (showExternal) {
+      base.push({ label: "External BI", kinds: ["external_bi"] });
+    }
+    return base;
+  }, [showExternal]);
 
   return (
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <CardTitle>Unity Catalog Lineage</CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -742,17 +822,56 @@ function LineageDAG() {
                 badge to trace its lineage, or click a node to inspect
               </p>
             </div>
-            {selectedTrace && (
-              <button
-                onClick={() => setSelectedTrace(null)}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md border px-2 py-1"
-              >
-                <X className="h-3 w-3" /> Clear trace
-              </button>
-            )}
+            <div className="flex items-center gap-3 shrink-0">
+              {selectedTrace && (
+                <button
+                  onClick={() => setSelectedTrace(null)}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md border px-2 py-1"
+                >
+                  <X className="h-3 w-3" /> Clear trace
+                </button>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <LayoutDashboard className="h-3.5 w-3.5 text-[#F2C811]" />
+                <span className="text-xs text-muted-foreground">External Lineage</span>
+                <Switch
+                  checked={showExternal}
+                  onCheckedChange={setShowExternal}
+                  aria-label="Toggle external Power BI lineage column"
+                />
+              </label>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
+          {showExternal && (
+            <div className="mb-4 rounded-md border border-[#F2C811]/40 bg-[#F2C811]/5 px-3 py-2 flex items-start gap-2">
+              <Sparkles className="h-3.5 w-3.5 text-[#F2C811] mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Databricks features are roadmapped to make it even easier to get Power BI lineage into Unity Catalog
+                &mdash; native PBI semantic-model capture, Lakeflow Connect for Power BI, and richer Microsoft Fabric
+                cross-lineage are all on the way. Today this view is powered by the GA{" "}
+                <a
+                  className="underline hover:text-foreground"
+                  href="https://learn.microsoft.com/en-gb/azure/databricks/data-governance/unity-catalog/external-lineage"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  External Metadata &amp; External Lineage APIs
+                </a>
+                {externalLineage?.source === "fallback" && (
+                  <>
+                    {" "}<span className="text-[10px] opacity-75">(showing demo defaults — run the bootstrap notebook to register objects in your metastore)</span>
+                  </>
+                )}
+                {externalLineage?.source === "live" && (
+                  <>
+                    {" "}<span className="text-[10px] opacity-75">(reading live from your metastore via WorkspaceClient.external_metadata)</span>
+                  </>
+                )}.
+              </p>
+            </div>
+          )}
           <div ref={containerRef} className="relative rounded-lg border bg-muted/30 p-6 overflow-x-auto">
             {/* SVG edge overlay */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
@@ -769,32 +888,37 @@ function LineageDAG() {
                 <marker id="arrowhead-emerald" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
                   <polygon points="0 0, 8 3, 0 6" fill="#059669" />
                 </marker>
+                <marker id="arrowhead-yellow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill={POWER_BI_YELLOW} />
+                </marker>
               </defs>
               {edges.map((e, i) => {
                 const isTraced = selectedTrace ? e.piiTraceGroup === selectedTrace : false;
                 const dim = selectedTrace && !isTraced;
                 const dx = e.x2 - e.x1;
-                const stroke = isTraced ? piiEdgeStroke(e.pii) : "#94a3b8";
+                const baseStroke = e.isExternal ? POWER_BI_YELLOW : "#94a3b8";
+                const stroke = isTraced ? piiEdgeStroke(e.pii) : baseStroke;
                 const markerEnd = isTraced
                   ? e.pii?.includes("derived") ? "url(#arrowhead-blue)" : e.pii?.includes("staff") ? "url(#arrowhead-emerald)" : "url(#arrowhead-red)"
-                  : "url(#arrowhead)";
+                  : e.isExternal ? "url(#arrowhead-yellow)" : "url(#arrowhead)";
                 return (
                   <path
                     key={i}
                     d={`M ${e.x1} ${e.y1} C ${e.x1 + dx * 0.4} ${e.y1}, ${e.x2 - dx * 0.4} ${e.y2}, ${e.x2} ${e.y2}`}
                     fill="none"
                     stroke={stroke}
-                    strokeWidth={isTraced ? 2.5 : 1}
-                    strokeDasharray={dim ? "4 4" : "none"}
-                    opacity={dim ? 0.15 : isTraced ? 1 : 0.35}
+                    strokeWidth={isTraced ? 2.5 : e.isExternal ? 1.4 : 1}
+                    strokeDasharray={e.isExternal && !isTraced ? "5 3" : dim ? "4 4" : "none"}
+                    opacity={dim ? 0.15 : isTraced ? 1 : e.isExternal ? 0.7 : 0.35}
                     markerEnd={markerEnd}
                   />
                 );
               })}
             </svg>
 
-            {/* Node grid */}
-            <div className="relative grid grid-cols-4 gap-x-16 gap-y-4" style={{ zIndex: 2 }}>
+            {/* Node grid — Tailwind needs literal class strings to compile,
+                so we ternary on the full token rather than templating it. */}
+            <div className={`relative grid ${showExternal ? "grid-cols-5" : "grid-cols-4"} gap-x-16 gap-y-4`} style={{ zIndex: 2 }}>
               {columns.map((col) => (
                 <div key={col.label} className="space-y-3">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground text-center">
@@ -817,7 +941,7 @@ function LineageDAG() {
                         <div className="space-y-1">
                           {node.columns.map((col) => {
                             const key = `${node.id}.${col.name}`;
-                            const isFieldTraced = selectedTrace && LINEAGE_EDGES.some(
+                            const isFieldTraced = selectedTrace && allEdges.some(
                               (e) => e.piiTraceGroup === selectedTrace && (e.from === key || e.to === key)
                             );
                             return (
@@ -832,7 +956,7 @@ function LineageDAG() {
                                     className={`text-[9px] px-1 py-0 cursor-pointer hover:ring-2 hover:ring-offset-1 transition-shadow ${piiColor(col.pii)}`}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      const traceGroup = LINEAGE_EDGES.find(
+                                      const traceGroup = allEdges.find(
                                         (edge) => (edge.from === key || edge.to === key) && edge.piiTraceGroup
                                       )?.piiTraceGroup ?? null;
                                       setSelectedTrace((prev) => prev === traceGroup ? null : traceGroup);
@@ -860,12 +984,14 @@ function LineageDAG() {
             {/* Legend */}
             <div className="mt-6 pt-4 border-t border-border/50 flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] text-muted-foreground">
               <span className="font-semibold uppercase tracking-wider mr-1">Nodes</span>
-              {Object.entries(NODE_HEADER_BADGE).map(([kind, meta]) => (
-                <span key={kind} className="flex items-center gap-1">
-                  <span className={`w-2.5 h-2.5 rounded border ${meta.cls}`} />
-                  {meta.label}
-                </span>
-              ))}
+              {Object.entries(NODE_HEADER_BADGE)
+                .filter(([kind]) => showExternal || kind !== "external_bi")
+                .map(([kind, meta]) => (
+                  <span key={kind} className="flex items-center gap-1">
+                    <span className={`w-2.5 h-2.5 rounded border ${meta.cls}`} />
+                    {meta.label}
+                  </span>
+                ))}
               <span className="mx-2 text-border">|</span>
               <span className="font-semibold uppercase tracking-wider mr-1">PII Tags</span>
               <span className="flex items-center gap-1">
@@ -905,6 +1031,30 @@ function LineageDAG() {
                   <p className="text-sm text-muted-foreground">{selectedNode.description}</p>
                 </div>
 
+                {selectedNode.kind === "external_bi" && (
+                  <div className="rounded-md border border-[#F2C811]/40 bg-[#F2C811]/5 px-3 py-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] border-[#F2C811]/50 bg-[#F2C811]/10 text-[#A38000] dark:text-[#F2C811]">
+                        External Power BI {selectedNode.entityType === "dashboard" ? "Dashboard" : "Report"}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        Registered as UC <code className="font-mono text-[10px]">external_metadata</code>
+                      </span>
+                    </div>
+                    {selectedNode.externalUrl && (
+                      <a
+                        href={selectedNode.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#A38000] dark:text-[#F2C811] hover:underline truncate max-w-full"
+                      >
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{selectedNode.externalUrl}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Columns</h4>
                   <div className="rounded-md border divide-y">
@@ -935,7 +1085,7 @@ function LineageDAG() {
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Upstream</h4>
                   <div className="space-y-1">
                     {(() => {
-                      const upstreams = LINEAGE_EDGES
+                      const upstreams = allEdges
                         .filter((e) => e.to.startsWith(selectedNode.id + "."))
                         .map((e) => ({ edge: e, sourceNode: LINEAGE_NODES.find((n) => n.id === e.from.split(".")[0]) }))
                         .filter((x) => x.sourceNode);
@@ -957,7 +1107,7 @@ function LineageDAG() {
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Downstream</h4>
                   <div className="space-y-1">
                     {(() => {
-                      const downstreams = LINEAGE_EDGES
+                      const downstreams = allEdges
                         .filter((e) => e.from.startsWith(selectedNode.id + "."))
                         .map((e) => ({ edge: e, targetNode: LINEAGE_NODES.find((n) => n.id === e.to.split(".")[0]) }))
                         .filter((x) => x.targetNode);
@@ -982,7 +1132,7 @@ function LineageDAG() {
                   className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  View in Databricks
+                  {selectedNode.kind === "external_bi" ? "Open in Power BI" : "View in Databricks"}
                 </a>
               </div>
             </>
