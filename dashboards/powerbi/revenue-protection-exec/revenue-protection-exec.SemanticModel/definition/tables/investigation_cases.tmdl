@@ -1,0 +1,55 @@
+table investigation_cases
+	lineageTag: 3ca8933b-eef7-56fb-8405-66c4dd9a4db7
+
+	column closed_timestamp
+		dataType: dateTime
+		sourceColumn: closed_timestamp
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		lineageTag: 8858fe59-acf1-5a31-a282-1f562ff17a8f
+
+	column outcome
+		dataType: string
+		sourceColumn: outcome
+		summarizeBy: none
+		lineageTag: b3bb0c36-4bce-5ab5-8905-242783980400
+
+	column region
+		dataType: string
+		sourceColumn: region
+		summarizeBy: none
+		lineageTag: 54d21107-297a-510e-8fa4-4b5ae6ca01ae
+
+	column revenue_recovered_gbp
+		dataType: double
+		sourceColumn: revenue_recovered_gbp
+		formatString: 0.000
+		summarizeBy: sum
+		lineageTag: 01ac0363-bb49-55da-a394-4f380ee5bbeb
+
+	measure RecoveredGBP = SUM(investigation_cases[revenue_recovered_gbp])
+		formatString: £#,0
+		lineageTag: 9f204960-7bbc-519b-b0cb-596b31ab809f
+
+	measure ConfirmedTheftCount = CALCULATE(COUNTROWS(investigation_cases), investigation_cases[outcome] = "THEFT_CONFIRMED")
+		formatString: #,0
+		lineageTag: b9d9588e-a2bf-5f69-a388-64b7263375be
+
+	measure DetectionPrecisionPct = DIVIDE([ConfirmedTheftCount], COUNTROWS(investigation_cases))
+		formatString: 0.0%
+		lineageTag: 32f27639-a640-58bd-8e4a-3693bc3beab7
+
+	partition investigation_cases = m
+		mode: directQuery
+		source =
+			let
+				Source = Databricks.Catalogs(workspace_host, http_path, null),
+				catalog = Source{[Name=catalog_name]}[Data],
+				schema = catalog{[Name=schema_name]}[Data],
+				tbl = schema{[Name="investigation_cases"]}[Data]
+			in
+				tbl
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_TableLineageTag = 11788d52-af92-5f3f-b707-0f2ed4240822
