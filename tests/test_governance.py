@@ -103,3 +103,65 @@ class TestModelPerformance:
         assert isinstance(r.json(), list)
 
 
+class TestExternalLineage:
+    """TC-G5: External Power BI lineage endpoint.
+
+    Without a metastore connection (no SQL_WAREHOUSE_ID, no privileges) the
+    endpoint must still return a well-formed response with source='fallback'
+    so the UI toggle keeps working in dev / unit-test mode.
+    """
+
+    def test_external_lineage_returns_200(self, client):
+        r = client.get("/api/governance/external-lineage")
+        assert r.status_code == 200
+
+    def test_external_lineage_shape(self, client):
+        data = client.get("/api/governance/external-lineage").json()
+        assert "nodes" in data
+        assert "edges" in data
+        assert "source" in data
+        assert data["source"] in ("live", "fallback")
+
+    def test_external_lineage_has_four_reports(self, client):
+        data = client.get("/api/governance/external-lineage").json()
+        assert len(data["nodes"]) == 4
+        names = {n["name"] for n in data["nodes"]}
+        assert names == {
+            "pbi_revenue_protection_exec",
+            "pbi_field_ops_heatmap",
+            "pbi_customer_insights",
+            "pbi_regulatory_compliance",
+        }
+
+    def test_external_lineage_has_at_least_ten_edges(self, client):
+        data = client.get("/api/governance/external-lineage").json()
+        assert len(data["edges"]) >= 10
+
+    def test_external_lineage_edge_shape(self, client):
+        data = client.get("/api/governance/external-lineage").json()
+        for e in data["edges"]:
+            assert "source_table" in e
+            assert "source_column" in e
+            assert "target_external" in e
+            assert "target_column" in e
+
+    def test_external_lineage_targets_match_nodes(self, client):
+        """Every edge must target one of the registered external nodes."""
+        data = client.get("/api/governance/external-lineage").json()
+        node_names = {n["name"] for n in data["nodes"]}
+        for e in data["edges"]:
+            assert e["target_external"] in node_names, (
+                f"edge targets unknown external object: {e['target_external']}"
+            )
+
+    def test_external_lineage_node_columns_cover_edge_targets(self, client):
+        """Every edge target_column should be in the corresponding node's columns."""
+        data = client.get("/api/governance/external-lineage").json()
+        cols_by_name = {n["name"]: set(n["columns"]) for n in data["nodes"]}
+        for e in data["edges"]:
+            assert e["target_column"] in cols_by_name[e["target_external"]], (
+                f"edge target column {e['target_column']} not declared on "
+                f"node {e['target_external']}"
+            )
+
+
