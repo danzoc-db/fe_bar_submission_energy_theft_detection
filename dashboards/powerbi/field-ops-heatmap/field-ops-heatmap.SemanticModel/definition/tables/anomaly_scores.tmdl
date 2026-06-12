@@ -1,0 +1,44 @@
+table anomaly_scores
+	lineageTag: df7286a8-e757-5954-9e8a-7f90d6b37374
+
+	column account_id
+		dataType: string
+		sourceColumn: account_id
+		summarizeBy: none
+		lineageTag: 4b16911e-e300-5bef-8528-dfbdc38a695c
+
+	column composite_risk_score
+		dataType: double
+		sourceColumn: composite_risk_score
+		formatString: 0.000
+		summarizeBy: sum
+		lineageTag: 642779a4-af54-5dae-a20a-16d8efff16b3
+
+	column postcode_sector
+		dataType: string
+		sourceColumn: postcode_sector
+		summarizeBy: none
+		lineageTag: 164f1962-1e3a-5dec-903a-0b863be4f7f0
+
+	measure HighRiskHotspots = COUNTROWS(FILTER(anomaly_scores, anomaly_scores[composite_risk_score] >= 0.75))
+		formatString: #,0
+		lineageTag: 2ebb07e6-388d-5224-bc5c-c9d4f23d893a
+
+	measure AverageRiskIntensity = AVERAGE(anomaly_scores[composite_risk_score])
+		formatString: 0.000
+		lineageTag: cdbd2e27-4fda-5d74-9761-01e6118a97af
+
+	partition anomaly_scores = m
+		mode: directQuery
+		source =
+			let
+				Source = Databricks.Catalogs(workspace_host, http_path, null),
+				catalog = Source{[Name=catalog_name]}[Data],
+				schema = catalog{[Name=schema_name]}[Data],
+				tbl = schema{[Name="anomaly_scores"]}[Data]
+			in
+				tbl
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_TableLineageTag = aed3fe47-8f03-550a-924c-e9927a6769a8

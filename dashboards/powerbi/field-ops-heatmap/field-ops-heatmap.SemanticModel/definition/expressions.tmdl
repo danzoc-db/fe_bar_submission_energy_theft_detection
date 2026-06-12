@@ -1,0 +1,12 @@
+expression workspace_host = "https://your-workspace.cloud.databricks.com" meta [IsParameterQuery=true, List=["https://your-workspace.cloud.databricks.com"], DefaultValue="https://your-workspace.cloud.databricks.com", Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 5ca25598-6db3-575a-be33-9bd3d27c3a47
+
+expression http_path = "/sql/1.0/warehouses/your-warehouse-id" meta [IsParameterQuery=true, List=["/sql/1.0/warehouses/your-warehouse-id"], DefaultValue="/sql/1.0/warehouses/your-warehouse-id", Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 443379e1-c003-5834-8595-f7d7afe9448d
+
+expression catalog_name = "zoccali_fevm" meta [IsParameterQuery=true, List=["zoccali_fevm"], DefaultValue="zoccali_fevm", Type="Text", IsParameterQueryRequired=true]
+	lineageTag: f2a8a7a2-5324-5733-9813-8e470959098e
+
+expression schema_name = "energy_theft_protection" meta [IsParameterQuery=true, List=["energy_theft_protection"], DefaultValue="energy_theft_protection", Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 9de385d3-b263-5338-a0da-3ecca6941791
+

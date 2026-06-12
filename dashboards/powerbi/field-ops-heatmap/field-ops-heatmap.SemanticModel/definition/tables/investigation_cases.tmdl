@@ -1,0 +1,34 @@
+table investigation_cases
+	lineageTag: 8b0f6f10-d44c-50ba-b407-6a3ac1415dd4
+
+	column opened_timestamp
+		dataType: dateTime
+		sourceColumn: opened_timestamp
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		lineageTag: 0a200d83-8e38-5c34-8ab9-3f6590aa35fb
+
+	column region
+		dataType: string
+		sourceColumn: region
+		summarizeBy: none
+		lineageTag: f1e7fe13-4f67-5e6a-9fdf-93cd06474463
+
+	measure OpenCasesByRegion = CALCULATE(COUNTROWS(investigation_cases), ISBLANK(investigation_cases[closed_timestamp]))
+		formatString: #,0
+		lineageTag: 8281c2f9-c7d4-5db8-8b62-001a7a95bfb6
+
+	partition investigation_cases = m
+		mode: directQuery
+		source =
+			let
+				Source = Databricks.Catalogs(workspace_host, http_path, null),
+				catalog = Source{[Name=catalog_name]}[Data],
+				schema = catalog{[Name=schema_name]}[Data],
+				tbl = schema{[Name="investigation_cases"]}[Data]
+			in
+				tbl
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_TableLineageTag = 1f42d8c5-0eb5-5d07-850b-6aa1298823e4

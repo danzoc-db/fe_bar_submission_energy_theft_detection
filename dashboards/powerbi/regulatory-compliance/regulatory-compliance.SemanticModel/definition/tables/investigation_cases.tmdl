@@ -1,0 +1,44 @@
+table investigation_cases
+	lineageTag: 5942cb21-a9dc-5642-96e3-c55d2240c91d
+
+	column case_id
+		dataType: string
+		sourceColumn: case_id
+		summarizeBy: none
+		lineageTag: de65c13a-8f4a-5496-89a8-02f363c7607c
+
+	column closed_timestamp
+		dataType: dateTime
+		sourceColumn: closed_timestamp
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		lineageTag: 15c38d59-02b8-5cc6-a032-62a1e2ce8893
+
+	column outcome
+		dataType: string
+		sourceColumn: outcome
+		summarizeBy: none
+		lineageTag: 2baa01ab-03c5-5d8f-a214-217fcda9102e
+
+	measure ConfirmedTheftYTD = CALCULATE(COUNTROWS(investigation_cases), investigation_cases[outcome] = "THEFT_CONFIRMED")
+		formatString: #,0
+		lineageTag: a2d8159a-9d1e-57fe-bc9f-30aeb6a0204d
+
+	measure AverageDaysToClose = AVERAGEX(FILTER(investigation_cases, NOT ISBLANK(investigation_cases[closed_timestamp])), DATEDIFF(investigation_cases[opened_timestamp], investigation_cases[closed_timestamp], DAY))
+		formatString: 0.0
+		lineageTag: ab2df6b9-a9e4-5692-8158-d1105288703c
+
+	partition investigation_cases = m
+		mode: directQuery
+		source =
+			let
+				Source = Databricks.Catalogs(workspace_host, http_path, null),
+				catalog = Source{[Name=catalog_name]}[Data],
+				schema = catalog{[Name=schema_name]}[Data],
+				tbl = schema{[Name="investigation_cases"]}[Data]
+			in
+				tbl
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_TableLineageTag = 0afdf03e-af30-5f96-8935-c0c2bc5fa2ed

@@ -1,0 +1,28 @@
+table anomaly_scores
+	lineageTag: 4af5a1e0-661b-57b9-a0ec-64dc87573727
+
+	column composite_risk_score
+		dataType: double
+		sourceColumn: composite_risk_score
+		formatString: 0.000
+		summarizeBy: sum
+		lineageTag: fa24712e-4c02-5688-9fc8-b0af07c4b867
+
+	measure AverageRiskScoreInsight = AVERAGE(anomaly_scores[composite_risk_score])
+		formatString: 0.000
+		lineageTag: 15ab5cdf-e92f-52cf-aac5-52fc25e4f689
+
+	partition anomaly_scores = m
+		mode: directQuery
+		source =
+			let
+				Source = Databricks.Catalogs(workspace_host, http_path, null),
+				catalog = Source{[Name=catalog_name]}[Data],
+				schema = catalog{[Name=schema_name]}[Data],
+				tbl = schema{[Name="anomaly_scores"]}[Data]
+			in
+				tbl
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_TableLineageTag = ab88b2e8-7039-5683-8333-5a0ee148ef15

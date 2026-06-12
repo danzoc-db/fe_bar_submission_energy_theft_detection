@@ -1,0 +1,46 @@
+{
+  "config": "{\"version\": \"5.55\", \"themeCollection\": {\"baseTheme\": {\"name\": \"CY24SU06\"}}, \"activeSectionIndex\": 0, \"defaultDrillFilterOtherVisuals\": true, \"settings\": {\"useStylableVisualContainerHeader\": true}}",
+  "layoutOptimization": 0,
+  "resourcePackages": [],
+  "sections": [
+    {
+      "name": "ebaf12a553725f6f9721c412e306b408",
+      "displayName": "Field Operations Heat Map",
+      "displayOption": 1,
+      "config": "{\"visibility\": 0}",
+      "filters": "[]",
+      "height": 720,
+      "width": 1280,
+      "ordinal": 0,
+      "visualContainers": [
+        {
+          "x": 16,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"e18f2ee30a4155eeb29f3b855265a5d9\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 16, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"HighRiskHotspots\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"anomaly_scores\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"HighRiskHotspots\"}, \"Name\": \"anomaly_scores.HighRiskHotspots\", \"NativeReferenceName\": \"HighRiskHotspots\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 272,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"5a58873b70e15baba1e07295d7fedb58\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 272, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"AverageRiskIntensity\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"anomaly_scores\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"AverageRiskIntensity\"}, \"Name\": \"anomaly_scores.AverageRiskIntensity\", \"NativeReferenceName\": \"AverageRiskIntensity\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 528,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"dcdf1f5be2c7517e9c5f16adb0425ed3\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 528, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"OpenCasesByRegion\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"investigation_cases\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"OpenCasesByRegion\"}, \"Name\": \"investigation_cases.OpenCasesByRegion\", \"NativeReferenceName\": \"OpenCasesByRegion\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        }
+      ]
+    }
+  ]
+}
