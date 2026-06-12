@@ -6,7 +6,7 @@ mapped into these shapes before being returned to the frontend.
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -268,6 +268,38 @@ class ModelPerformancePoint(BaseModel):
     f1_score: float
     cases_scored: int
     cases_confirmed: int
+
+
+# ---------------------------------------------------------------------------
+# External Lineage — fake Power BI reports downstream of UC tables
+# ---------------------------------------------------------------------------
+
+class ExternalLineageNode(BaseModel):
+    """One Power BI report registered as a UC external_metadata object."""
+    name: str = Field(description="Unique snake_case identifier — matches the UC external_metadata name.")
+    display: str
+    system_type: str = "POWER_BI"
+    entity_type: str = Field(description='"dashboard" or "report".')
+    url: str
+    description: str
+    columns: list[str]
+
+
+class ExternalLineageEdge(BaseModel):
+    """One UPSTREAM column-level edge from a UC table to a PBI report column."""
+    source_table: str = Field(description="Short UC table name — matches LineageDAG node IDs in the frontend.")
+    source_column: str
+    target_external: str = Field(description="External metadata name (matches ExternalLineageNode.name).")
+    target_column: str
+
+
+class ExternalLineageResponse(BaseModel):
+    """GET /api/governance/external-lineage payload."""
+    nodes: list[ExternalLineageNode]
+    edges: list[ExternalLineageEdge]
+    source: Literal["live", "fallback"] = Field(
+        description='"live" when read from Unity Catalog via external_metadata API; "fallback" when served from the static shared module.'
+    )
 
 
 # ---------------------------------------------------------------------------

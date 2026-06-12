@@ -33,6 +33,9 @@ from .models import (
     DailyBriefing,
     DashboardKPIs,
     DispatchReport,
+    ExternalLineageEdge,
+    ExternalLineageNode,
+    ExternalLineageResponse,
     FlaggedAccountListItem,
     FuelSplitItem,
     FuelType,
@@ -94,6 +97,14 @@ _CACHE_TTL = 5400  # seconds — 1.5 hours for demo stability
 def _cache_get(key: str) -> Any | None:
     entry = _cache.get(key)
     if entry and (_time.monotonic() - entry[0]) < _CACHE_TTL:
+        return entry[1]
+    return None
+
+
+def _cache_get_ttl(key: str, ttl_seconds: int) -> Any | None:
+    """Cache lookup with a per-key TTL override (default cache uses _CACHE_TTL)."""
+    entry = _cache.get(key)
+    if entry and (_time.monotonic() - entry[0]) < ttl_seconds:
         return entry[1]
     return None
 
@@ -3081,6 +3092,227 @@ async def get_ai_components(request: Request):
     if last_run_str is not None:
         _cache_set("ai_components", result)
     return result
+
+
+# ---------------------------------------------------------------------------
+# External Lineage — fake Power BI reports downstream of UC tables
+# ---------------------------------------------------------------------------
+
+# Cached for 10 minutes (rarely changes — Catalog Explorer additions are
+# weekly at most). Mirrors the in-memory pattern used by column metadata.
+_EXTERNAL_LINEAGE_TTL = 10 * 60
+
+
+_LINEAGE_DEFS_CACHE: Any | None = None
+
+
+def _load_shared_lineage_defs():
+    """Import the shared external-lineage definitions.
+
+    Canonical source: scripts/setup/external_lineage_objects.py. Hatch
+    force-includes that same file into the wheel at
+    energy_theft_detection/_external_lineage_objects.py so the deployed
+    backend can `from energy_theft_detection import _external_lineage_objects`
+    without depending on the source tree at runtime.
+
+    For editable installs (local dev / pytest) the wheel copy isn't present,
+    so we transparently fall back to loading the canonical file from disk via
+    importlib.util — keeps a single source of truth in both modes.
+    """
+    global _LINEAGE_DEFS_CACHE
+    if _LINEAGE_DEFS_CACHE is not None:
+        return _LINEAGE_DEFS_CACHE
+    try:
+        from .. import _external_lineage_objects as _shared  # type: ignore[attr-defined]
+        _LINEAGE_DEFS_CACHE = _shared
+        return _shared
+    except ImportError:
+        pass
+    try:
+        import importlib.util as _ilu
+        import sys as _sys
+        from pathlib import Path as _Path
+        here = _Path(__file__).resolve()
+        candidates = [
+            here.parents[3] / "scripts" / "setup" / "external_lineage_objects.py",
+            here.parents[2] / "scripts" / "setup" / "external_lineage_objects.py",
+        ]
+        for cand in candidates:
+            if cand.is_file():
+                mod_name = "energy_theft_detection_lineage_defs"
+                spec = _ilu.spec_from_file_location(mod_name, str(cand))
+                if spec and spec.loader:
+                    mod = _ilu.module_from_spec(spec)
+                    # Register in sys.modules BEFORE exec — required so that
+                    # @dataclass introspection in the file can look up the
+                    # owning module by __module__.
+                    _sys.modules[mod_name] = mod
+                    spec.loader.exec_module(mod)
+                    _LINEAGE_DEFS_CACHE = mod
+                    return mod
+        raise FileNotFoundError(
+            "external_lineage_objects.py not found in wheel or scripts/setup/."
+        )
+    except Exception as exc:
+        logger.error(f"Failed to load external lineage definitions: {exc}")
+        raise
+
+
+def _fallback_external_lineage() -> ExternalLineageResponse:
+    """Build response from the static shared module — used when the live UC
+    read fails or returns nothing for the demo namespace."""
+    shared = _load_shared_lineage_defs()
+    nodes = [
+        ExternalLineageNode(
+            name=r.name,
+            display=r.display,
+            system_type="POWER_BI",
+            entity_type=r.entity_type,
+            url=r.url,
+            description=r.description,
+            columns=list(r.columns),
+        )
+        for r in shared.POWER_BI_REPORTS
+    ]
+    edges = [
+        ExternalLineageEdge(
+            source_table=e.source_table,
+            source_column=e.source_column,
+            target_external=e.target_pbi,
+            target_column=e.target_column,
+        )
+        for e in shared.COLUMN_EDGES
+    ]
+    return ExternalLineageResponse(nodes=nodes, edges=edges, source="fallback")
+
+
+def _live_external_lineage(db: SQLClient) -> ExternalLineageResponse | None:
+    """Read external_metadata + external_lineage from UC via the SDK.
+
+    Returns None if the live read can't be completed (privileges, SDK
+    version, network) — callers should fall back to the static defaults.
+    Filters to objects tagged with our DEMO_PROPERTIES marker so we don't
+    surface unrelated metastore-wide objects.
+    """
+    shared = _load_shared_lineage_defs()
+    ws = db._client
+    if not hasattr(ws, "external_metadata"):
+        return None
+
+    try:
+        marker_key = "created_by"
+        marker_val = shared.DEMO_PROPERTIES.get(marker_key, "")
+        demo_names = {r.name for r in shared.POWER_BI_REPORTS}
+
+        em_records = []
+        for em in ws.external_metadata.list_external_metadata():
+            props = getattr(em, "properties", {}) or {}
+            name = getattr(em, "name", "")
+            if (props.get(marker_key) == marker_val) or (name in demo_names):
+                em_records.append(em)
+
+        if not em_records:
+            return None
+
+        nodes: list[ExternalLineageNode] = []
+        for em in em_records:
+            sys_type = getattr(em, "system_type", "POWER_BI")
+            sys_type_val = sys_type.value if hasattr(sys_type, "value") else str(sys_type)
+            nodes.append(
+                ExternalLineageNode(
+                    name=em.name,
+                    display=(getattr(em, "description", "") or em.name).split("\n")[0][:80],
+                    system_type=sys_type_val,
+                    entity_type=getattr(em, "entity_type", "report"),
+                    url=getattr(em, "url", "") or "",
+                    description=getattr(em, "description", "") or "",
+                    columns=list(getattr(em, "columns", []) or []),
+                )
+            )
+
+        # Enrich displays from the static module so the UI matches the bootstrap
+        # without depending on the description first-line trick.
+        static_displays = {r.name: r.display for r in shared.POWER_BI_REPORTS}
+        for n in nodes:
+            if n.name in static_displays:
+                n.display = static_displays[n.name]
+
+        # Lineage edges — query per target external object, UPSTREAM direction.
+        from databricks.sdk.service import catalog as _cat
+        edges: list[ExternalLineageEdge] = []
+        for em in em_records:
+            obj_info = _cat.ExternalLineageObject(
+                external_metadata=_cat.ExternalLineageExternalMetadata(name=em.name)
+            )
+            try:
+                for info in ws.external_lineage.list_external_lineage_relationships(
+                    object_info=obj_info,
+                    lineage_direction=_cat.LineageDirection.UPSTREAM,
+                ):
+                    rel = getattr(info, "external_lineage_info", None)
+                    if not rel:
+                        continue
+                    src = getattr(rel, "source", None)
+                    src_tbl = getattr(src, "table", None) if src else None
+                    src_fqn = getattr(src_tbl, "name", "") if src_tbl else ""
+                    # FQN -> short table name (catalog.schema.table)
+                    src_short = src_fqn.split(".")[-1] if src_fqn else ""
+                    col_rels = getattr(rel, "columns", []) or []
+                    for cr in col_rels:
+                        edges.append(
+                            ExternalLineageEdge(
+                                source_table=src_short,
+                                source_column=getattr(cr, "source", "") or "",
+                                target_external=em.name,
+                                target_column=getattr(cr, "target", "") or "",
+                            )
+                        )
+            except Exception as e:
+                logger.warning(f"list_external_lineage_relationships failed for {em.name}: {e}")
+
+        if not edges:
+            # Nodes exist but no edges yet — looks empty in the UI. Treat as
+            # incomplete and fall back to defaults so the demo still demos.
+            return None
+
+        return ExternalLineageResponse(nodes=nodes, edges=edges, source="live")
+
+    except Exception as e:
+        logger.warning(f"Live external-lineage read failed: {e}")
+        return None
+
+
+@api.get(
+    "/governance/external-lineage",
+    response_model=ExternalLineageResponse,
+    operation_id="getExternalLineage",
+)
+async def get_external_lineage(request: Request):
+    """External Power BI lineage — Catalog Explorer's external_metadata API.
+
+    Returns the four fake Power BI reports we register as UC external objects
+    via `notebooks/09_configure_external_lineage.py`, with column-level
+    upstream relationships back to `anomaly_scores`, `investigation_cases`,
+    `smart_meter_reads`, and `model_performance_log`.
+
+    Live UC read first; falls back transparently to the static shared module
+    (with `source="fallback"` on the response) when the metastore is not
+    reachable or hasn't been bootstrapped yet.
+    """
+    cached = _cache_get_ttl("external_lineage", _EXTERNAL_LINEAGE_TTL)
+    if cached is not None:
+        return cached
+
+    db = _sql(request)
+    if db:
+        live = _live_external_lineage(db)
+        if live is not None:
+            _cache_set("external_lineage", live)
+            return live
+
+    fb = _fallback_external_lineage()
+    _cache_set("external_lineage", fb)
+    return fb
 
 
 _GATEWAY_ENDPOINTS = (
