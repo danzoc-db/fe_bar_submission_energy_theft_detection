@@ -301,9 +301,19 @@ resources:
               catalog: "${var.catalog}"
               schema: "${var.schema}"
           environment_key: "default_env"
-        - task_key: "configure_genie"
+        - task_key: "configure_external_lineage"
           depends_on:
             - task_key: "metric_views"
+          notebook_task:
+            notebook_path: "./notebooks/09_configure_external_lineage.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+              dry_run: "false"
+          environment_key: "default_env"
+        - task_key: "configure_genie"
+          depends_on:
+            - task_key: "configure_external_lineage"
           notebook_task:
             notebook_path: "./notebooks/06_configure_genie.py"
             base_parameters:
