@@ -197,7 +197,7 @@ function InvestigationPage() {
         </div>
 
         {/* Operational KPIs */}
-        <div>
+        <div id="investigation-kpis">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             Today's Operations
           </h2>
@@ -460,6 +460,13 @@ function InvestigationKPIRow({
     }
   };
 
+  const formatCompactGbp = (value: number) => {
+    if (value >= 1_000_000_000) return `£${(value / 1_000_000_000).toFixed(1)}B`;
+    if (value >= 1_000_000) return `£${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `£${(value / 1_000).toFixed(1)}K`;
+    return `£${Math.round(value).toLocaleString("en-GB")}`;
+  };
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       <KPITile
@@ -504,7 +511,7 @@ function InvestigationKPIRow({
       />
       <KPITile
         label="Recovered This Month"
-        value={`£${(kpis.revenue_recovered_this_month_gbp / 1000).toFixed(1)}k`}
+        value={formatCompactGbp(kpis.revenue_recovered_this_month_gbp)}
         icon={PoundSterling}
         color="bg-emerald-500"
         iconColor="text-emerald-500"
@@ -1170,11 +1177,6 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
             recovered: resp.data.recovered_amount ?? null,
             message: resp.data.message ?? "Investigation closed successfully",
           });
-          if (resp.data.outcome === "THEFT_CONFIRMED" && resp.data.recovered_amount) {
-            window.dispatchEvent(
-              new CustomEvent("investigation-closed-theft", { detail: resp.data.recovered_amount })
-            );
-          }
           queryClient.invalidateQueries({ queryKey: listFlaggedAccountsKey() });
           queryClient.invalidateQueries({ queryKey: getInvestigationKPIsKey() });
           queryClient.invalidateQueries({ queryKey: getDashboardKPIsKey() });
@@ -1282,7 +1284,19 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
         </Card>
       )}
 
-      <Dialog open={closedDialog !== null} onOpenChange={(v) => { if (!v) setClosedDialog(null); }}>
+      <Dialog open={closedDialog !== null} onOpenChange={(v) => {
+        if (!v) {
+          const wasTh = closedDialog?.outcome === "THEFT_CONFIRMED" && closedDialog?.recovered;
+          const amt = closedDialog?.recovered;
+          setClosedDialog(null);
+          if (wasTh && amt) {
+            document.getElementById("investigation-kpis")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("investigation-closed-theft", { detail: amt }));
+            }, 400);
+          }
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1333,7 +1347,17 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
             </div>
           )}
           <DialogFooter>
-            <Button size="sm" onClick={() => setClosedDialog(null)} className="bg-green-600 hover:bg-green-700 text-white">
+            <Button size="sm" onClick={() => {
+              const wasTh = closedDialog?.outcome === "THEFT_CONFIRMED" && closedDialog?.recovered;
+              const amt = closedDialog?.recovered;
+              setClosedDialog(null);
+              if (wasTh && amt) {
+                document.getElementById("investigation-kpis")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent("investigation-closed-theft", { detail: amt }));
+                }, 400);
+              }
+            }} className="bg-green-600 hover:bg-green-700 text-white">
               Done
             </Button>
           </DialogFooter>
@@ -1480,7 +1504,7 @@ function BedrockHood() {
     <UnderTheHood title="AI Gateway & Bedrock — Multi-Cloud LLM">
       <HoodSection title="How it's built" icon={Layers}>
         <HoodBullet icon={Cpu} bold="One endpoint, any provider">
-          Claude 3.5 Haiku on AWS Bedrock via a single Databricks API. Swap providers without code changes.
+          Amazon Nova Lite on AWS Bedrock via a single Databricks API. Swap providers without code changes.
         </HoodBullet>
         <HoodBullet icon={Shield} bold="AI governance built in">
           Access control, guardrails, audit, rate limiting — all logged to UC system tables and inference tables. One place.
@@ -1583,7 +1607,7 @@ function BriefingSkeleton() {
               Amazon Bedrock AI Investigation Briefing
             </p>
             <p className="text-xs text-muted-foreground">
-              Generating today's intelligence summary via Claude 3.5 Haiku…
+              Generating today's intelligence summary via Amazon Nova Lite…
             </p>
           </div>
           <div className="w-64 h-1.5 rounded-full bg-muted overflow-hidden">

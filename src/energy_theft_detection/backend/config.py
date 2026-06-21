@@ -50,7 +50,7 @@ class AppConfig(BaseSettings):
         validation_alias="LLAMA_GATEWAY_ENDPOINT",
     )
     mas_endpoint: str = Field(
-        default="mas-37323382-endpoint",
+        default="",
         validation_alias="MAS_ENDPOINT",
     )
     genie_space_id: str = Field(

@@ -1,0 +1,64 @@
+{
+  "config": "{\"version\": \"5.55\", \"themeCollection\": {\"baseTheme\": {\"name\": \"CY24SU06\"}}, \"activeSectionIndex\": 0, \"defaultDrillFilterOtherVisuals\": true, \"settings\": {\"useStylableVisualContainerHeader\": true}}",
+  "layoutOptimization": 0,
+  "resourcePackages": [],
+  "sections": [
+    {
+      "name": "6b1ed56793e95058a2a4434ee57a14fe",
+      "displayName": "Revenue Protection Executive Dashboard",
+      "displayOption": 1,
+      "config": "{\"visibility\": 0}",
+      "filters": "[]",
+      "height": 720,
+      "width": 1280,
+      "ordinal": 0,
+      "visualContainers": [
+        {
+          "x": 16,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"5fc55652f3a15227842e179aaacc00e8\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 16, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"HighRiskAccounts\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"anomaly_scores\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"HighRiskAccounts\"}, \"Name\": \"anomaly_scores.HighRiskAccounts\", \"NativeReferenceName\": \"HighRiskAccounts\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 272,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"09fae1ef4a8951dcb61da3a1d70e5b1b\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 272, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"AverageRiskScore\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"anomaly_scores\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"AverageRiskScore\"}, \"Name\": \"anomaly_scores.AverageRiskScore\", \"NativeReferenceName\": \"AverageRiskScore\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 528,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"84a84f533a265d918dd779a7a4de353c\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 528, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"RecoveredGBP\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"investigation_cases\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"RecoveredGBP\"}, \"Name\": \"investigation_cases.RecoveredGBP\", \"NativeReferenceName\": \"RecoveredGBP\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 784,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"b514d62f43f25318adef5bc9917aef43\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 784, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"ConfirmedTheftCount\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"investigation_cases\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"ConfirmedTheftCount\"}, \"Name\": \"investigation_cases.ConfirmedTheftCount\", \"NativeReferenceName\": \"ConfirmedTheftCount\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 16,
+          "y": 152,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"1a345be4a616585e9dcce332a06efc0c\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 16, \"y\": 152, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"DetectionPrecisionPct\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"investigation_cases\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"DetectionPrecisionPct\"}, \"Name\": \"investigation_cases.DetectionPrecisionPct\", \"NativeReferenceName\": \"DetectionPrecisionPct\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        }
+      ]
+    }
+  ]
+}

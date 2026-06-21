@@ -343,9 +343,9 @@ _ensure_sp_genie_access(CATALOG, SCHEMA, TABLE_IDENTIFIERS, APP_NAME)
 
 # COMMAND ----------
 
-DEMO_USERS = [
-    "john.southcombe@databricks.com",
-]
+# Keep empty by default for workspace portability.
+# Add users only where those principals actually exist.
+DEMO_USERS = []
 
 def _ensure_demo_user_access(space_id, warehouse_id, users):
     """Grant CAN_RUN on the Genie Space and CAN_USE on the warehouse."""

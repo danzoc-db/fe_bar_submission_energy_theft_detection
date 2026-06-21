@@ -33,7 +33,11 @@ from .models import (
     DailyBriefing,
     DashboardKPIs,
     DispatchReport,
+    ExternalLineageEdge,
+    ExternalLineageNode,
+    ExternalLineageResponse,
     FlaggedAccountListItem,
+    FinOpsSummary,
     FuelSplitItem,
     FuelType,
     GenieConversation,
@@ -43,6 +47,8 @@ from .models import (
     LLMCaseSummary,
     MeterReadPoint,
     ModelPerformancePoint,
+    BudgetAnomalyAlert,
+    EndpointBudgetStatus,
     PIIFieldAccess,
     RecoveryOpportunity,
     RiskHeatmapPoint,
@@ -98,6 +104,14 @@ def _cache_get(key: str) -> Any | None:
     return None
 
 
+def _cache_get_ttl(key: str, ttl_seconds: int) -> Any | None:
+    """Cache lookup with a per-key TTL override (default cache uses _CACHE_TTL)."""
+    entry = _cache.get(key)
+    if entry and (_time.monotonic() - entry[0]) < ttl_seconds:
+        return entry[1]
+    return None
+
+
 def _cache_set(key: str, value: Any) -> None:
     _cache[key] = (_time.monotonic(), value)
 
@@ -109,14 +123,60 @@ _CLOSE_AFFECTED_KEYS = [
 ]
 
 
-def _invalidate_after_close(db: "SQLClient") -> None:
-    """Selectively invalidate cache keys affected by a close operation, then
-    re-warm them in a background thread so the next read is instant."""
+def _optimistic_cache_update(
+    outcome: str,
+    recovered: float | None,
+) -> None:
+    """Optimistically patch cached KPIs with the known close delta so the
+    next frontend read is instant — no SQL round-trip required.
+
+    The background thread will eventually re-warm the cache with real data,
+    but the user sees the change immediately.
+    """
+    from .models import InvestigationKPIs, DashboardKPIs
+
+    is_theft = outcome == "THEFT_CONFIRMED"
+    rec_amt = recovered or 0.0
+
+    inv = _cache_get("investigation_kpis")
+    if isinstance(inv, InvestigationKPIs):
+        updated = inv.model_copy(update={
+            "open_high_cases": max(inv.open_high_cases - 1, 0),
+            "closed_this_month": inv.closed_this_month + 1,
+            "confirmed_theft_this_month": inv.confirmed_theft_this_month + (1 if is_theft else 0),
+            "revenue_recovered_this_month_gbp": inv.revenue_recovered_this_month_gbp + rec_amt,
+            "precision_rate_pct": round(
+                (inv.confirmed_theft_this_month + (1 if is_theft else 0))
+                * 100.0
+                / max(inv.closed_this_month + 1, 1),
+                1,
+            ),
+        })
+        _cache_set("investigation_kpis", updated)
+
+    dash = _cache_get("dashboard_kpis")
+    if isinstance(dash, DashboardKPIs):
+        new_ytd = dash.revenue_recovered_ytd_gbp + rec_amt
+        updated_dash = dash.model_copy(update={
+            "revenue_recovered_ytd_gbp": new_ytd,
+            "recovery_rate_pct": round(
+                new_ytd * 100.0 / max(dash.recovery_target_gbp, 1), 1
+            ),
+        })
+        _cache_set("dashboard_kpis", updated_dash)
+
+    stale_keys = [k for k in _cache if k.startswith("flagged_accounts:")]
+    for k in stale_keys:
+        _cache.pop(k, None)
+
+
+def _invalidate_and_rewarm(db: "SQLClient") -> None:
+    """Full cache invalidation + SQL re-warm. Runs in background thread
+    after the SQL writes complete so the cache converges to truth."""
     import threading
 
     for key in _CLOSE_AFFECTED_KEYS:
         _cache.pop(key, None)
-    # Also invalidate any flagged_accounts cache entries
     stale_keys = [k for k in _cache if k.startswith("flagged_accounts:")]
     for k in stale_keys:
         _cache.pop(k, None)
@@ -1049,12 +1109,34 @@ Respond ONLY with the JSON object. No markdown, no code fences, no extra text.""
                     choices = data.get("choices", [])
                     if choices:
                         raw = choices[0].get("message", {}).get("content", "")
+                        cleaned = (raw or "").strip()
+                        if cleaned.startswith("```"):
+                            cleaned = cleaned.removeprefix("```json").removeprefix("```").strip()
+                            if cleaned.endswith("```"):
+                                cleaned = cleaned[:-3].strip()
+
+                        parsed = None
                         try:
-                            parsed = _json.loads(raw)
-                            briefing_text = parsed.get("summary", "")
-                            actions = parsed.get("actions", [])
+                            parsed = _json.loads(cleaned)
                         except (_json.JSONDecodeError, TypeError):
-                            briefing_text = raw
+                            # Some providers prepend extra text; extract JSON object if present.
+                            start = cleaned.find("{")
+                            end = cleaned.rfind("}")
+                            if start != -1 and end != -1 and end > start:
+                                try:
+                                    parsed = _json.loads(cleaned[start : end + 1])
+                                except (_json.JSONDecodeError, TypeError):
+                                    parsed = None
+
+                        if isinstance(parsed, dict):
+                            briefing_text = str(parsed.get("summary", "")).strip()
+                            raw_actions = parsed.get("actions", [])
+                            if isinstance(raw_actions, list):
+                                actions = [str(a).strip() for a in raw_actions if str(a).strip()]
+                            elif raw_actions:
+                                actions = [str(raw_actions).strip()]
+                        else:
+                            briefing_text = cleaned
         except Exception as e:
             logger.error(f"Daily briefing AI call failed: {e}")
 
@@ -1158,7 +1240,12 @@ async def list_flagged_accounts(
     operation_id="getAccountDetail",
 )
 async def get_account_detail(request: Request, account_id: str):
-    """Full account detail with anomaly signals."""
+    """Full account detail with anomaly signals.
+
+    Optimised: the main account query now includes score_timestamp, and
+    the meter-reads + cohort-reads queries run in parallel via ThreadPool
+    to cut latency from 4 sequential round-trips to 1 + 1 parallel pair.
+    """
     cache_key = f"account_detail:{account_id}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -1173,7 +1260,7 @@ async def get_account_detail(request: Request, account_id: str):
               a.composite_risk_score, a.consumption_drop_pct,
               a.comms_gap_count_30d,
               a.isolation_forest_score, a.lstm_deviation_score,
-              a.cohort_deviation_score
+              a.cohort_deviation_score, a.score_timestamp
             FROM anomaly_scores a
             JOIN property_reference pr ON a.account_id = pr.account_id
             WHERE a.account_id = '{account_id}'
@@ -1188,17 +1275,11 @@ async def get_account_detail(request: Request, account_id: str):
             drop = min(100.0, max(0.0, float(r["consumption_drop_pct"])))
             fuel = r["fuel_type"]
             postcode_sector = r["postcode"]
+            anomaly_onset = r.get("score_timestamp")
 
-            score_ts_rows = db.execute(f"""
-                SELECT score_timestamp FROM anomaly_scores
-                WHERE account_id = '{account_id}'
-                LIMIT 1
-            """)
-            anomaly_onset = None
-            if score_ts_rows and score_ts_rows[0].get("score_timestamp"):
-                anomaly_onset = score_ts_rows[0]["score_timestamp"]
+            from concurrent.futures import ThreadPoolExecutor
 
-            meter_rows = db.execute(f"""
+            meter_sql = f"""
                 SELECT DATE(read_timestamp) AS day,
                        AVG(consumption_kwh) AS avg_kwh,
                        MAX(read_quality) AS read_quality
@@ -1207,18 +1288,8 @@ async def get_account_detail(request: Request, account_id: str):
                   AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
                 GROUP BY DATE(read_timestamp)
                 ORDER BY day
-            """) or []
-
-            meter_reads = [
-                MeterReadPoint(
-                    read_timestamp=mr["day"],
-                    consumption_kwh=float(mr["avg_kwh"]),
-                    read_quality=mr["read_quality"] or "actual",
-                )
-                for mr in meter_rows
-            ]
-
-            cohort_rows = db.execute(f"""
+            """
+            cohort_sql = f"""
                 SELECT DATE(read_timestamp) AS day,
                        AVG(consumption_kwh) AS avg_kwh
                 FROM smart_meter_reads
@@ -1228,7 +1299,22 @@ async def get_account_detail(request: Request, account_id: str):
                   AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
                 GROUP BY DATE(read_timestamp)
                 ORDER BY day
-            """) or []
+            """
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                fut_meter = pool.submit(db.execute, meter_sql)
+                fut_cohort = pool.submit(db.execute, cohort_sql)
+                meter_rows = fut_meter.result(timeout=30) or []
+                cohort_rows = fut_cohort.result(timeout=30) or []
+
+            meter_reads = [
+                MeterReadPoint(
+                    read_timestamp=mr["day"],
+                    consumption_kwh=float(mr["avg_kwh"]),
+                    read_quality=mr["read_quality"] or "actual",
+                )
+                for mr in meter_rows
+            ]
 
             cohort_avg_reads = [
                 MeterReadPoint(
@@ -1315,7 +1401,11 @@ def _est_monthly_loss(drop_pct: float, score: float) -> float:
     operation_id="getCaseSummary",
 )
 async def get_case_summary(request: Request, account_id: str):
-    """Generate LLM case summary for a flagged account via AI Gateway."""
+    """Generate LLM case summary for a flagged account via AI Gateway.
+
+    Optimised: both anomaly_scores and investigation_cases are queried in
+    parallel via ThreadPool to halve the latency.
+    """
     cache_key = f"case_summary:{account_id}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -1330,14 +1420,28 @@ async def get_case_summary(request: Request, account_id: str):
     gaps = 0
 
     if db:
-        rows = db.execute(f"""
+        from concurrent.futures import ThreadPoolExecutor
+
+        anomaly_sql = f"""
             SELECT composite_risk_score, consumption_drop_pct,
                    comms_gap_count_30d, risk_tier,
                    isolation_forest_score, lstm_deviation_score
             FROM anomaly_scores
             WHERE account_id = '{account_id}'
             LIMIT 1
-        """)
+        """
+        case_sql = f"""
+            SELECT llm_summary FROM investigation_cases
+            WHERE account_id = '{account_id}'
+            LIMIT 1
+        """
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_anomaly = pool.submit(db.execute, anomaly_sql)
+            fut_case = pool.submit(db.execute, case_sql)
+            rows = fut_anomaly.result(timeout=30)
+            case_rows = fut_case.result(timeout=30)
+
         if rows:
             r = rows[0]
             risk_level = r["risk_tier"]
@@ -1351,11 +1455,6 @@ async def get_case_summary(request: Request, account_id: str):
                 f"LSTM deviation: {float(r['lstm_deviation_score']):.2f}",
             ]
 
-        case_rows = db.execute(f"""
-            SELECT llm_summary FROM investigation_cases
-            WHERE account_id = '{account_id}'
-            LIMIT 1
-        """)
         if case_rows and case_rows[0].get("llm_summary"):
             raw = case_rows[0]["llm_summary"]
             cs_result = LLMCaseSummary(
@@ -1692,6 +1791,8 @@ async def close_investigation(request: Request, account_id: str, body: Investiga
         WHERE account_id = '{account_id}'
     """
 
+    _optimistic_cache_update(db_outcome, recovered)
+
     import threading
 
     def _write_and_rewarm():
@@ -1709,11 +1810,9 @@ async def close_investigation(request: Request, account_id: str, body: Investiga
                 except Exception as e:
                     logger.warning(f"Close investigation anomaly_scores update failed for {account_id}: {e}")
         finally:
-            _invalidate_after_close(db)
+            _invalidate_and_rewarm(db)
 
     threading.Thread(target=_write_and_rewarm, daemon=True).start()
-
-    _invalidate_after_close(db)
 
     return InvestigationCloseResponse(
         success=True,
@@ -3020,6 +3119,227 @@ async def get_ai_components(request: Request):
     return result
 
 
+# ---------------------------------------------------------------------------
+# External Lineage — fake Power BI reports downstream of UC tables
+# ---------------------------------------------------------------------------
+
+# Cached for 10 minutes (rarely changes — Catalog Explorer additions are
+# weekly at most). Mirrors the in-memory pattern used by column metadata.
+_EXTERNAL_LINEAGE_TTL = 10 * 60
+
+
+_LINEAGE_DEFS_CACHE: Any | None = None
+
+
+def _load_shared_lineage_defs():
+    """Import the shared external-lineage definitions.
+
+    Canonical source: scripts/setup/external_lineage_objects.py. Hatch
+    force-includes that same file into the wheel at
+    energy_theft_detection/_external_lineage_objects.py so the deployed
+    backend can `from energy_theft_detection import _external_lineage_objects`
+    without depending on the source tree at runtime.
+
+    For editable installs (local dev / pytest) the wheel copy isn't present,
+    so we transparently fall back to loading the canonical file from disk via
+    importlib.util — keeps a single source of truth in both modes.
+    """
+    global _LINEAGE_DEFS_CACHE
+    if _LINEAGE_DEFS_CACHE is not None:
+        return _LINEAGE_DEFS_CACHE
+    try:
+        from .. import _external_lineage_objects as _shared  # type: ignore[attr-defined]
+        _LINEAGE_DEFS_CACHE = _shared
+        return _shared
+    except ImportError:
+        pass
+    try:
+        import importlib.util as _ilu
+        import sys as _sys
+        from pathlib import Path as _Path
+        here = _Path(__file__).resolve()
+        candidates = [
+            here.parents[3] / "scripts" / "setup" / "external_lineage_objects.py",
+            here.parents[2] / "scripts" / "setup" / "external_lineage_objects.py",
+        ]
+        for cand in candidates:
+            if cand.is_file():
+                mod_name = "energy_theft_detection_lineage_defs"
+                spec = _ilu.spec_from_file_location(mod_name, str(cand))
+                if spec and spec.loader:
+                    mod = _ilu.module_from_spec(spec)
+                    # Register in sys.modules BEFORE exec — required so that
+                    # @dataclass introspection in the file can look up the
+                    # owning module by __module__.
+                    _sys.modules[mod_name] = mod
+                    spec.loader.exec_module(mod)
+                    _LINEAGE_DEFS_CACHE = mod
+                    return mod
+        raise FileNotFoundError(
+            "external_lineage_objects.py not found in wheel or scripts/setup/."
+        )
+    except Exception as exc:
+        logger.error(f"Failed to load external lineage definitions: {exc}")
+        raise
+
+
+def _fallback_external_lineage() -> ExternalLineageResponse:
+    """Build response from the static shared module — used when the live UC
+    read fails or returns nothing for the demo namespace."""
+    shared = _load_shared_lineage_defs()
+    nodes = [
+        ExternalLineageNode(
+            name=r.name,
+            display=r.display,
+            system_type="POWER_BI",
+            entity_type=r.entity_type,
+            url=r.url,
+            description=r.description,
+            columns=list(r.columns),
+        )
+        for r in shared.POWER_BI_REPORTS
+    ]
+    edges = [
+        ExternalLineageEdge(
+            source_table=e.source_table,
+            source_column=e.source_column,
+            target_external=e.target_pbi,
+            target_column=e.target_column,
+        )
+        for e in shared.COLUMN_EDGES
+    ]
+    return ExternalLineageResponse(nodes=nodes, edges=edges, source="fallback")
+
+
+def _live_external_lineage(db: SQLClient) -> ExternalLineageResponse | None:
+    """Read external_metadata + external_lineage from UC via the SDK.
+
+    Returns None if the live read can't be completed (privileges, SDK
+    version, network) — callers should fall back to the static defaults.
+    Filters to objects tagged with our DEMO_PROPERTIES marker so we don't
+    surface unrelated metastore-wide objects.
+    """
+    shared = _load_shared_lineage_defs()
+    ws = db._client
+    if not hasattr(ws, "external_metadata"):
+        return None
+
+    try:
+        marker_key = "created_by"
+        marker_val = shared.DEMO_PROPERTIES.get(marker_key, "")
+        demo_names = {r.name for r in shared.POWER_BI_REPORTS}
+
+        em_records = []
+        for em in ws.external_metadata.list_external_metadata():
+            props = getattr(em, "properties", {}) or {}
+            name = getattr(em, "name", "")
+            if (props.get(marker_key) == marker_val) or (name in demo_names):
+                em_records.append(em)
+
+        if not em_records:
+            return None
+
+        nodes: list[ExternalLineageNode] = []
+        for em in em_records:
+            sys_type = getattr(em, "system_type", "POWER_BI")
+            sys_type_val = sys_type.value if hasattr(sys_type, "value") else str(sys_type)
+            nodes.append(
+                ExternalLineageNode(
+                    name=em.name,
+                    display=(getattr(em, "description", "") or em.name).split("\n")[0][:80],
+                    system_type=sys_type_val,
+                    entity_type=getattr(em, "entity_type", "report"),
+                    url=getattr(em, "url", "") or "",
+                    description=getattr(em, "description", "") or "",
+                    columns=list(getattr(em, "columns", []) or []),
+                )
+            )
+
+        # Enrich displays from the static module so the UI matches the bootstrap
+        # without depending on the description first-line trick.
+        static_displays = {r.name: r.display for r in shared.POWER_BI_REPORTS}
+        for n in nodes:
+            if n.name in static_displays:
+                n.display = static_displays[n.name]
+
+        # Lineage edges — query per target external object, UPSTREAM direction.
+        from databricks.sdk.service import catalog as _cat
+        edges: list[ExternalLineageEdge] = []
+        for em in em_records:
+            obj_info = _cat.ExternalLineageObject(
+                external_metadata=_cat.ExternalLineageExternalMetadata(name=em.name)
+            )
+            try:
+                for info in ws.external_lineage.list_external_lineage_relationships(
+                    object_info=obj_info,
+                    lineage_direction=_cat.LineageDirection.UPSTREAM,
+                ):
+                    rel = getattr(info, "external_lineage_info", None)
+                    if not rel:
+                        continue
+                    src = getattr(rel, "source", None)
+                    src_tbl = getattr(src, "table", None) if src else None
+                    src_fqn = getattr(src_tbl, "name", "") if src_tbl else ""
+                    # FQN -> short table name (catalog.schema.table)
+                    src_short = src_fqn.split(".")[-1] if src_fqn else ""
+                    col_rels = getattr(rel, "columns", []) or []
+                    for cr in col_rels:
+                        edges.append(
+                            ExternalLineageEdge(
+                                source_table=src_short,
+                                source_column=getattr(cr, "source", "") or "",
+                                target_external=em.name,
+                                target_column=getattr(cr, "target", "") or "",
+                            )
+                        )
+            except Exception as e:
+                logger.warning(f"list_external_lineage_relationships failed for {em.name}: {e}")
+
+        if not edges:
+            # Nodes exist but no edges yet — looks empty in the UI. Treat as
+            # incomplete and fall back to defaults so the demo still demos.
+            return None
+
+        return ExternalLineageResponse(nodes=nodes, edges=edges, source="live")
+
+    except Exception as e:
+        logger.warning(f"Live external-lineage read failed: {e}")
+        return None
+
+
+@api.get(
+    "/governance/external-lineage",
+    response_model=ExternalLineageResponse,
+    operation_id="getExternalLineage",
+)
+async def get_external_lineage(request: Request):
+    """External Power BI lineage — Catalog Explorer's external_metadata API.
+
+    Returns the four fake Power BI reports we register as UC external objects
+    via `notebooks/09_configure_external_lineage.py`, with column-level
+    upstream relationships back to `anomaly_scores`, `investigation_cases`,
+    `smart_meter_reads`, and `model_performance_log`.
+
+    Live UC read first; falls back transparently to the static shared module
+    (with `source="fallback"` on the response) when the metastore is not
+    reachable or hasn't been bootstrapped yet.
+    """
+    cached = _cache_get_ttl("external_lineage", _EXTERNAL_LINEAGE_TTL)
+    if cached is not None:
+        return cached
+
+    db = _sql(request)
+    if db:
+        live = _live_external_lineage(db)
+        if live is not None:
+            _cache_set("external_lineage", live)
+            return live
+
+    fb = _fallback_external_lineage()
+    _cache_set("external_lineage", fb)
+    return fb
+
+
 _GATEWAY_ENDPOINTS = (
     "energy-theft-bedrock-gateway",
     "energy-theft-gemini-gateway",
@@ -3029,12 +3349,38 @@ _GATEWAY_ENDPOINTS = (
 _GATEWAY_IN_CLAUSE = ", ".join(f"'{e}'" for e in _GATEWAY_ENDPOINTS)
 
 _COST_PER_TOKEN: dict[str, tuple[float, float]] = {
-    "energy-theft-bedrock-gateway": (0.25 / 1e6, 1.25 / 1e6),      # Claude 3.5 Haiku
+    "energy-theft-bedrock-gateway": (0.06 / 1e6, 0.24 / 1e6),      # Amazon Nova Lite (demo estimate)
     "energy-theft-gemini-gateway": (0.075 / 1e6, 0.30 / 1e6),      # Gemini 2.0 Flash
     "energy-theft-openai-gateway": (0.15 / 1e6, 0.60 / 1e6),       # GPT-4o Mini via FMAPI
     "energy-theft-llama-gateway": (0.07 / 1e6, 0.07 / 1e6),        # Llama 3.1 70B via FMAPI (DBRX pricing)
 }
-_DEFAULT_COST = (0.25 / 1e6, 1.25 / 1e6)
+_DEFAULT_COST = (0.06 / 1e6, 0.24 / 1e6)
+_ENDPOINT_BUDGETS: dict[str, dict[str, float | int | str]] = {
+    # Demo-friendly budgets: keep monthly spend around ~$500 per endpoint
+    # and avoid very large token budget figures in the UI.
+    "energy-theft-bedrock-gateway": {
+        "display_name": "Bedrock Nova Lite",
+        "monthly_token_budget": 500,
+        "monthly_usd_budget": 500.0,
+    },
+    "energy-theft-openai-gateway": {
+        "display_name": "Foundation Model API (Claude/Sonnet)",
+        "monthly_token_budget": 500,
+        "monthly_usd_budget": 500.0,
+    },
+    "energy-theft-llama-gateway": {
+        "display_name": "Foundation Model API (GPT-OSS/Llama)",
+        "monthly_token_budget": 500,
+        "monthly_usd_budget": 500.0,
+    },
+    "energy-theft-gemini-gateway": {
+        "display_name": "Foundation Model API (Gemini route)",
+        "monthly_token_budget": 500,
+        "monthly_usd_budget": 500.0,
+    },
+}
+_RL_ENDPOINT_PER_MIN = 30
+_RL_USER_PER_MIN = 10
 
 def _row_cost(endpoint_name: str, input_tokens: int, output_tokens: int) -> float:
     inp_rate, out_rate = _COST_PER_TOKEN.get(endpoint_name, _DEFAULT_COST)
@@ -3146,6 +3492,153 @@ async def get_audit_summary(request: Request):
         total_cost_usd=0.0,
         avg_latency_ms=0.0,
         error_count=0,
+    )
+
+
+@api.get(
+    "/governance/finops",
+    response_model=FinOpsSummary,
+    operation_id="getFinOpsSummary",
+)
+async def get_finops_summary(request: Request):
+    """Cost/governance KPIs from AI Gateway usage + investigations.
+
+    Backed by system.serving.endpoint_usage as source-of-truth for token/cost
+    telemetry. Includes per-model budgets, blocked-request KPI, cost-per-
+    investigation, and daily spike detection.
+    """
+    db = _sql(request)
+    if not db:
+        return FinOpsSummary(
+            total_cost_usd_mtd=0.0,
+            total_tokens_mtd=0,
+            total_blocked_requests_mtd=0,
+            cost_per_investigation_usd=0.0,
+            investigations_mtd=0,
+            endpoint_budgets=[],
+            anomaly_alert=BudgetAnomalyAlert(active=False, message="No SQL warehouse configured."),
+        )
+
+    try:
+        by_endpoint = db.execute(f"""
+            SELECT
+              se.endpoint_name,
+              COALESCE(SUM(eu.input_token_count), 0) AS input_tokens,
+              COALESCE(SUM(eu.output_token_count), 0) AS output_tokens,
+              COUNT(*) AS calls,
+              COUNT_IF(COALESCE(eu.status_code, 200) >= 400) AS blocked_or_error_calls
+            FROM system.serving.endpoint_usage eu
+            JOIN system.serving.served_entities se
+              ON eu.served_entity_id = se.served_entity_id
+            WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+              AND DATE_TRUNC('month', eu.request_time) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
+            GROUP BY se.endpoint_name
+        """)
+    except Exception as e:
+        logger.error(f"FinOps endpoint aggregation failed: {e}")
+        by_endpoint = []
+
+    try:
+        daily_rows = db.execute(f"""
+            SELECT
+              DATE(eu.request_time) AS day,
+              COALESCE(SUM(eu.input_token_count + eu.output_token_count), 0) AS total_tokens
+            FROM system.serving.endpoint_usage eu
+            JOIN system.serving.served_entities se
+              ON eu.served_entity_id = se.served_entity_id
+            WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+              AND eu.request_time >= CURRENT_TIMESTAMP() - INTERVAL 14 DAYS
+            GROUP BY DATE(eu.request_time)
+            ORDER BY day
+        """)
+    except Exception as e:
+        logger.error(f"FinOps daily token query failed: {e}")
+        daily_rows = []
+
+    try:
+        # Align with dashboard storytelling: confirmed theft outcomes closed this month.
+        inv_rows = db.execute("""
+            SELECT COUNT(*) AS c
+            FROM investigation_cases
+            WHERE outcome = 'THEFT_CONFIRMED'
+              AND DATE_TRUNC('month', closed_timestamp) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
+        """)
+        investigations_mtd = int(inv_rows[0]["c"] or 0) if inv_rows else 0
+    except Exception:
+        investigations_mtd = 0
+
+    agg: dict[str, dict[str, int]] = {
+        ep: {"input": 0, "output": 0, "blocked": 0}
+        for ep in _GATEWAY_ENDPOINTS
+    }
+    for r in by_endpoint:
+        ep = r["endpoint_name"]
+        if ep not in agg:
+            continue
+        agg[ep]["input"] = int(r["input_tokens"] or 0)
+        agg[ep]["output"] = int(r["output_tokens"] or 0)
+        agg[ep]["blocked"] = int(r["blocked_or_error_calls"] or 0)
+
+    endpoint_budgets: list[EndpointBudgetStatus] = []
+    total_cost = 0.0
+    total_tokens = 0
+    total_blocked = 0
+    for ep in _GATEWAY_ENDPOINTS:
+        input_t = agg[ep]["input"]
+        output_t = agg[ep]["output"]
+        blocked = agg[ep]["blocked"]
+        used_tokens = input_t + output_t
+        used_cost = _row_cost(ep, input_t, output_t)
+        total_cost += used_cost
+        total_tokens += used_tokens
+        total_blocked += blocked
+        budget_conf = _ENDPOINT_BUDGETS.get(ep, {})
+        token_budget = int(budget_conf.get("monthly_token_budget", 1_000_000))
+        usd_budget = float(budget_conf.get("monthly_usd_budget", 10.0))
+        endpoint_budgets.append(
+            EndpointBudgetStatus(
+                endpoint_name=ep,
+                display_name=str(budget_conf.get("display_name", ep)),
+                monthly_token_budget=token_budget,
+                monthly_usd_budget=usd_budget,
+                used_tokens_mtd=used_tokens,
+                used_cost_usd_mtd=round(used_cost, 4),
+                token_budget_pct=round(min(100.0, (used_tokens / max(token_budget, 1)) * 100), 1),
+                usd_budget_pct=round(min(100.0, (used_cost / max(usd_budget, 0.0001)) * 100), 1),
+                rate_limit_endpoint_calls_per_min=_RL_ENDPOINT_PER_MIN,
+                rate_limit_user_calls_per_min=_RL_USER_PER_MIN,
+                blocked_request_count_mtd=blocked,
+            )
+        )
+
+    daily_series = [int(r.get("total_tokens", 0) or 0) for r in daily_rows]
+    anomaly = BudgetAnomalyAlert(active=False, message="No token spike detected in trailing 14 days.")
+    if len(daily_series) >= 4:
+        latest = daily_series[-1]
+        trailing = daily_series[:-1]
+        trailing_avg = sum(trailing) / max(len(trailing), 1)
+        ratio = (latest / trailing_avg) if trailing_avg > 0 else 0.0
+        # Alert when latest day materially exceeds baseline usage.
+        if latest >= 25_000 and ratio >= 1.8:
+            latest_day = str(daily_rows[-1]["day"]) if daily_rows else None
+            anomaly = BudgetAnomalyAlert(
+                active=True,
+                latest_day=latest_day,
+                latest_tokens=latest,
+                trailing_avg_tokens=round(trailing_avg, 1),
+                spike_ratio=round(ratio, 2),
+                message="Daily token usage spike detected — investigate traffic burst or retry loop.",
+            )
+
+    cpi = (total_cost / investigations_mtd) if investigations_mtd > 0 else 0.0
+    return FinOpsSummary(
+        total_cost_usd_mtd=round(total_cost, 4),
+        total_tokens_mtd=total_tokens,
+        total_blocked_requests_mtd=total_blocked,
+        cost_per_investigation_usd=round(cpi, 4),
+        investigations_mtd=investigations_mtd,
+        endpoint_budgets=endpoint_budgets,
+        anomaly_alert=anomaly,
     )
 
 

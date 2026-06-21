@@ -101,9 +101,9 @@ _grant_app_sp_access(CATALOG, SCHEMA, APP_NAME)
 
 # COMMAND ----------
 
-_NAMED_USERS = [
-    "john.southcombe@databricks.com",
-]
+# Keep empty by default for workspace portability.
+# Add named users per-target where principals are provisioned.
+_NAMED_USERS = []
 
 def _grant_named_user_access(catalog: str, schema: str, users: list[str]) -> None:
     """Grant USE CATALOG, USE SCHEMA, and SELECT to individual users."""
@@ -125,3 +125,61 @@ def _grant_named_user_access(catalog: str, schema: str, users: list[str]) -> Non
                     print(f"  ⚠ {stmt} — {e}")
 
 _grant_named_user_access(CATALOG, SCHEMA, _NAMED_USERS)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Grant Metastore Privilege for External Lineage (best effort)
+# MAGIC
+# MAGIC External lineage registration in `09_configure_external_lineage.py`
+# MAGIC requires `CREATE EXTERNAL METADATA` on the metastore.
+# MAGIC
+# MAGIC We grant this to:
+# MAGIC - the current run user (typical job run-as principal)
+# MAGIC - the app service principal (if resolvable)
+# MAGIC
+# MAGIC This is best-effort: if the caller is not a metastore admin, we log a
+# MAGIC warning and continue so the end-to-end pipeline remains runnable.
+
+# COMMAND ----------
+
+def _current_user_name() -> str:
+    try:
+        return w.current_user.me().user_name or ""
+    except Exception:
+        return ""
+
+
+def _app_sp_application_id(app_name: str) -> str:
+    if not app_name:
+        return ""
+    try:
+        app_info = w.apps.get(app_name)
+        sp_id = getattr(app_info, "service_principal_id", None)
+        if not sp_id:
+            return ""
+        sp = w.service_principals.get(sp_id)
+        return sp.application_id or ""
+    except Exception:
+        return ""
+
+
+def _grant_create_external_metadata(principal: str) -> None:
+    if not principal:
+        return
+    stmt = f"GRANT CREATE EXTERNAL METADATA ON METASTORE TO `{principal}`"
+    try:
+        spark.sql(stmt)
+        print(f"  ✓ {stmt}")
+    except Exception as e:
+        msg = str(e)
+        if "already" in msg.lower() or "ALREADY_EXISTS" in msg:
+            print(f"  ✓ {stmt} (already granted)")
+        else:
+            print(f"  ⚠ {stmt} — {e}")
+            print("    (Caller is likely not a metastore admin; external lineage notebook may soft-skip.)")
+
+
+print("\nGranting CREATE EXTERNAL METADATA where possible:")
+_grant_create_external_metadata(_current_user_name())
+_grant_create_external_metadata(_app_sp_application_id(APP_NAME))

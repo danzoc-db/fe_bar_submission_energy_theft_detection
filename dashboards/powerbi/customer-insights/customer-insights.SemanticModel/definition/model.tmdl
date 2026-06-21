@@ -1,0 +1,11 @@
+model Model
+	culture: en-US
+	discourageImplicitMeasures
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-GB
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation PBI_QueryOrder = ["anomaly_scores", "smart_meter_reads"]
+annotation PBI_ETD_Report = pbi_customer_insights

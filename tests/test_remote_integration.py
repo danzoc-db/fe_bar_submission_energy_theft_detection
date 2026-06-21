@@ -115,7 +115,7 @@ class TestRemoteCloseInvestigation:
         assert data["success"] is True
         assert data["account_id"] == "UKI-0000874"
         assert data["outcome"] == "THEFT_CONFIRMED"
-        assert "Lakehouse" in data.get("message", "")
+        assert "Lakebase" in data.get("message", "")
 
     def test_close_latency_within_budget(self, api):
         """Full close round-trip should complete within the latency budget."""

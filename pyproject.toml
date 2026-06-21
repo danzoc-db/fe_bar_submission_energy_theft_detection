@@ -61,8 +61,21 @@ template = '''
 version = "{version}"
 '''
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires deployed Databricks workspace (deselect with -m 'not integration')",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/energy_theft_detection"]
+
+# The shared external-lineage definitions live in scripts/setup/ so the
+# bootstrap notebook and the .pbip generator can import them by sys.path.
+# Force-include the same file into the wheel so the FastAPI backend can
+# `from energy_theft_detection._external_lineage_objects import ...` without
+# duplicating the report definitions — keeps the single source of truth.
+[tool.hatch.build.targets.wheel.force-include]
+"scripts/setup/external_lineage_objects.py" = "energy_theft_detection/_external_lineage_objects.py"
 
 [tool.hatch.build]
 artifacts = ["src/energy_theft_detection/__dist__", "src/energy_theft_detection/_metadata.py"]

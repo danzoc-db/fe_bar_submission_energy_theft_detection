@@ -6,7 +6,7 @@ mapped into these shapes before being returned to the frontend.
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -258,6 +258,42 @@ class AuditSummary(BaseModel):
     error_count: int
 
 
+class EndpointBudgetStatus(BaseModel):
+    """Per-endpoint budget consumption and governance status."""
+    endpoint_name: str
+    display_name: str
+    monthly_token_budget: int
+    monthly_usd_budget: float
+    used_tokens_mtd: int
+    used_cost_usd_mtd: float
+    token_budget_pct: float
+    usd_budget_pct: float
+    rate_limit_endpoint_calls_per_min: int
+    rate_limit_user_calls_per_min: int
+    blocked_request_count_mtd: int = 0
+
+
+class BudgetAnomalyAlert(BaseModel):
+    """Daily token-spike alert for governance and cost control."""
+    active: bool
+    latest_day: str | None = None
+    latest_tokens: int = 0
+    trailing_avg_tokens: float = 0.0
+    spike_ratio: float = 0.0
+    message: str = ""
+
+
+class FinOpsSummary(BaseModel):
+    """Unified AI Gateway FinOps/governance summary for the UI."""
+    total_cost_usd_mtd: float
+    total_tokens_mtd: int
+    total_blocked_requests_mtd: int
+    cost_per_investigation_usd: float
+    investigations_mtd: int
+    endpoint_budgets: list[EndpointBudgetStatus]
+    anomaly_alert: BudgetAnomalyAlert
+
+
 class ModelPerformancePoint(BaseModel):
     """Monthly model performance metric."""
     month: str
@@ -268,6 +304,38 @@ class ModelPerformancePoint(BaseModel):
     f1_score: float
     cases_scored: int
     cases_confirmed: int
+
+
+# ---------------------------------------------------------------------------
+# External Lineage — fake Power BI reports downstream of UC tables
+# ---------------------------------------------------------------------------
+
+class ExternalLineageNode(BaseModel):
+    """One Power BI report registered as a UC external_metadata object."""
+    name: str = Field(description="Unique snake_case identifier — matches the UC external_metadata name.")
+    display: str
+    system_type: str = "POWER_BI"
+    entity_type: str = Field(description='"dashboard" or "report".')
+    url: str
+    description: str
+    columns: list[str]
+
+
+class ExternalLineageEdge(BaseModel):
+    """One UPSTREAM column-level edge from a UC table to a PBI report column."""
+    source_table: str = Field(description="Short UC table name — matches LineageDAG node IDs in the frontend.")
+    source_column: str
+    target_external: str = Field(description="External metadata name (matches ExternalLineageNode.name).")
+    target_column: str
+
+
+class ExternalLineageResponse(BaseModel):
+    """GET /api/governance/external-lineage payload."""
+    nodes: list[ExternalLineageNode]
+    edges: list[ExternalLineageEdge]
+    source: Literal["live", "fallback"] = Field(
+        description='"live" when read from Unity Catalog via external_metadata API; "fallback" when served from the static shared module.'
+    )
 
 
 # ---------------------------------------------------------------------------

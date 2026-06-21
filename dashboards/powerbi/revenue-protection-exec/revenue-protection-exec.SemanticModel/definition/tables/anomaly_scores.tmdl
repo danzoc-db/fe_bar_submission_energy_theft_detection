@@ -1,0 +1,44 @@
+table anomaly_scores
+	lineageTag: fdfaccb6-c5e6-5b9a-b5a6-8789c9121573
+
+	column account_id
+		dataType: string
+		sourceColumn: account_id
+		summarizeBy: none
+		lineageTag: 7b0636ef-9fef-5035-a2df-ae7562c9fca4
+
+	column composite_risk_score
+		dataType: double
+		sourceColumn: composite_risk_score
+		formatString: 0.000
+		summarizeBy: sum
+		lineageTag: 2e4b291c-64e3-5a55-bcce-f1cd197b2076
+
+	column risk_tier
+		dataType: string
+		sourceColumn: risk_tier
+		summarizeBy: none
+		lineageTag: 41b8bf97-7e42-5131-a351-85b0902ef92c
+
+	measure HighRiskAccounts = COUNTROWS(FILTER(anomaly_scores, anomaly_scores[risk_tier] = "HIGH"))
+		formatString: #,0
+		lineageTag: bff25e74-a268-5c60-8b90-08cc08af0bab
+
+	measure AverageRiskScore = AVERAGE(anomaly_scores[composite_risk_score])
+		formatString: 0.000
+		lineageTag: 2efaee62-abae-5b1a-a435-e28bd6e4ec69
+
+	partition anomaly_scores = m
+		mode: directQuery
+		source =
+			let
+				Source = Databricks.Catalogs(workspace_host, http_path, null),
+				catalog = Source{[Name=catalog_name]}[Data],
+				schema = catalog{[Name=schema_name]}[Data],
+				tbl = schema{[Name="anomaly_scores"]}[Data]
+			in
+				tbl
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_TableLineageTag = ed46e006-ca18-53d0-b4a0-6917a4f3322e

@@ -1,0 +1,55 @@
+{
+  "config": "{\"version\": \"5.55\", \"themeCollection\": {\"baseTheme\": {\"name\": \"CY24SU06\"}}, \"activeSectionIndex\": 0, \"defaultDrillFilterOtherVisuals\": true, \"settings\": {\"useStylableVisualContainerHeader\": true}}",
+  "layoutOptimization": 0,
+  "resourcePackages": [],
+  "sections": [
+    {
+      "name": "edfc230730fa5fafbe3c264f4eef232f",
+      "displayName": "Regulatory Compliance Report (TDIS R0173)",
+      "displayOption": 1,
+      "config": "{\"visibility\": 0}",
+      "filters": "[]",
+      "height": 720,
+      "width": 1280,
+      "ordinal": 0,
+      "visualContainers": [
+        {
+          "x": 16,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"2c357b9d8c095fcfa0ba85feb9d25d44\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 16, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"ConfirmedTheftYTD\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"investigation_cases\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"ConfirmedTheftYTD\"}, \"Name\": \"investigation_cases.ConfirmedTheftYTD\", \"NativeReferenceName\": \"ConfirmedTheftYTD\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 272,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"e8c2f1fc70685527842e5874351f38ee\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 272, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"AverageDaysToClose\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"investigation_cases\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"AverageDaysToClose\"}, \"Name\": \"investigation_cases.AverageDaysToClose\", \"NativeReferenceName\": \"AverageDaysToClose\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 528,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"2f5c744560935f0d80f9a88872b4ebc2\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 528, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"LatestPrecisionPct\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"model_performance_log\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"LatestPrecisionPct\"}, \"Name\": \"model_performance_log.LatestPrecisionPct\", \"NativeReferenceName\": \"LatestPrecisionPct\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        },
+        {
+          "x": 784,
+          "y": 16,
+          "z": 0,
+          "width": 240,
+          "height": 120,
+          "config": "{\"name\": \"18a6dec6bd705d3fb3e24f5ee91b37ee\", \"layouts\": [{\"id\": 0, \"position\": {\"x\": 784, \"y\": 16, \"z\": 0, \"width\": 240, \"height\": 120, \"tabOrder\": 0}}], \"singleVisual\": {\"visualType\": \"card\", \"projections\": {\"Values\": [{\"queryRef\": \"LatestRecallPct\", \"active\": true}]}, \"prototypeQuery\": {\"Version\": 2, \"From\": [{\"Name\": \"t\", \"Entity\": \"model_performance_log\", \"Type\": 0}], \"Select\": [{\"Measure\": {\"Expression\": {\"SourceRef\": {\"Source\": \"t\"}}, \"Property\": \"LatestRecallPct\"}, \"Name\": \"model_performance_log.LatestRecallPct\", \"NativeReferenceName\": \"LatestRecallPct\"}]}, \"objects\": {\"labels\": [{\"properties\": {\"fontSize\": {\"expr\": {\"Literal\": {\"Value\": \"12D\"}}}}}]}}}",
+          "filters": "[]"
+        }
+      ]
+    }
+  ]
+}

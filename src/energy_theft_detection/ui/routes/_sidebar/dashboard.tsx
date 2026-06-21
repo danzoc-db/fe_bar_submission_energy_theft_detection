@@ -963,7 +963,7 @@ function GenieInline() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center">
-              <Sparkles className="h-4.5 w-4.5 text-[#0093F5]" />
+              <Sparkles className="h-4.5 w-4.5 text-[#E8700A]" />
             </div>
             <div>
               <h3 className="font-semibold text-base">Ask Genie</h3>
@@ -1231,7 +1231,7 @@ function GenieHood() {
 }
 
 // ---------------------------------------------------------------------------
-// Under the Hood — UC Metric Views vs Power BI Semantic Models
+// Under the Hood — UC Metric Views
 // ---------------------------------------------------------------------------
 
 function MetricViewHood() {
@@ -1239,7 +1239,7 @@ function MetricViewHood() {
     <UnderTheHood title="UC Metric Views — Governed Metrics">
       <HoodSection title="How it's built" icon={Layers}>
         <HoodBullet icon={Globe} bold="One definition, use it anywhere">
-          Define a KPI once in SQL. Use it in Apps, Genie, Power BI, Agents — the engine computes it at any granularity on read.
+          Define a KPI once in SQL. Use it in Apps, Genie, Agents, and any BI tool — the engine computes it at any granularity on read.
         </HoodBullet>
         <HoodBullet icon={Shield} bold="Business owns the formula">
           Version-controlled & permissioned in UC. Analysts approve — no engineer needed. LLMs can't hallucinate formulas.
@@ -1251,10 +1251,10 @@ function MetricViewHood() {
 
       <FabricCallout category="Governance">
         <p>
-          <strong>DAX semantic model required</strong> — proprietary language, specialist skill set, 20+ measures manually maintained at different granularities, locked inside the Power BI semantic model. Copilot generates unverified formulas outside the governance perimeter. Purview can't see inside DAX models.
+          <strong>Legacy BI semantic models</strong> require proprietary languages, specialist skill sets, and 20+ measures manually maintained at different granularities. Formulas live outside the governance perimeter.
         </p>
         <p>
-          Databricks: one Metric View <em>is</em> the semantic layer — SQL, governed by UC, queryable in Apps, Genie, Power BI, and Agents. Zero DAX.
+          Databricks: one Metric View <em>is</em> the semantic layer — SQL, governed by UC, queryable in Apps, Genie, Agents, and any downstream tool.
         </p>
       </FabricCallout>
     </UnderTheHood>

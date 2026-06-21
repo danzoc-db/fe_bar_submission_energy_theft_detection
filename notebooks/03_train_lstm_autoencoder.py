@@ -19,6 +19,9 @@ SCHEMA = dbutils.widgets.get("schema")
 MODEL_NAME = f"{CATALOG}.{SCHEMA}.lstm_consumption_v2"
 
 import mlflow
+import json
+import io
+from datetime import datetime
 mlflow.set_registry_uri("databricks-uc")
 
 spark.sql(f"USE CATALOG {CATALOG}")
@@ -201,7 +204,12 @@ with mlflow.start_run(run_name="lstm_consumption_v2"):
     with torch.no_grad():
         sample_output = model(torch.from_numpy(sample_input).to(device)).cpu().numpy()
     sig = infer_signature(sample_input, sample_output)
-    mlflow.pytorch.log_model(model, "model", registered_model_name=MODEL_NAME, signature=sig)
+    registry_ok = True
+    try:
+        mlflow.pytorch.log_model(model, "model", registered_model_name=MODEL_NAME, signature=sig)
+    except Exception as e:
+        registry_ok = False
+        print(f"⚠ UC model registry upload failed, falling back to Delta model store: {e}")
 
     # --- Diagnostic Artifacts ---
     import matplotlib
@@ -256,12 +264,42 @@ with mlflow.start_run(run_name="lstm_consumption_v2"):
 
     print("Logged 3 diagnostic artifacts to MLflow")
 
-print(f"Registered model: {MODEL_NAME}")
-
-client = mlflow.MlflowClient()
-latest = max(client.search_model_versions(f"name='{MODEL_NAME}'"), key=lambda v: int(v.version))
-client.set_registered_model_alias(MODEL_NAME, "champion", latest.version)
-print(f"Set @champion alias to version {latest.version}")
+if registry_ok:
+    print(f"Registered model: {MODEL_NAME}")
+    client = mlflow.MlflowClient()
+    latest = max(client.search_model_versions(f"name='{MODEL_NAME}'"), key=lambda v: int(v.version))
+    client.set_registered_model_alias(MODEL_NAME, "champion", latest.version)
+    print(f"Set @champion alias to version {latest.version}")
+else:
+    fallback_table = f"{CATALOG}.{SCHEMA}.model_fallback_store"
+    spark.sql(f"""
+      CREATE TABLE IF NOT EXISTS {fallback_table} (
+        model_name STRING,
+        flavor STRING,
+        payload BINARY,
+        meta_json STRING,
+        created_at TIMESTAMP
+      )
+    """)
+    spark.sql(f"DELETE FROM {fallback_table} WHERE model_name = '{MODEL_NAME}'")
+    buf = io.BytesIO()
+    torch.save(model.state_dict(), buf)
+    payload = bytearray(buf.getvalue())
+    meta_json = json.dumps(
+        {
+            "framework": "pytorch",
+            "class": "LSTMAutoencoder",
+            "input_dim": 1,
+            "hidden_dim": HIDDEN_DIM,
+            "latent_dim": LATENT_DIM,
+            "seq_len": SEQ_LEN,
+        }
+    )
+    spark.createDataFrame(
+        [(MODEL_NAME, "pytorch_state_dict", payload, meta_json, datetime.utcnow())],
+        "model_name string, flavor string, payload binary, meta_json string, created_at timestamp",
+    ).write.mode("append").saveAsTable(fallback_table)
+    print(f"Saved fallback model artifact to {fallback_table}")
 
 # COMMAND ----------
 

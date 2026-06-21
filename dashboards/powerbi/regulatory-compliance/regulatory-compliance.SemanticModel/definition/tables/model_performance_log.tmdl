@@ -1,0 +1,45 @@
+table model_performance_log
+	lineageTag: d87ea064-808e-5e3f-b59e-ae87c5b77f2c
+
+	column model_version
+		dataType: string
+		sourceColumn: model_version
+		summarizeBy: none
+		lineageTag: 5f83f2a2-3126-5e84-996d-edd0be83e0e9
+
+	column precision_pct
+		dataType: double
+		sourceColumn: precision_pct
+		formatString: 0.000
+		summarizeBy: sum
+		lineageTag: 216ddeae-6d13-522a-824c-bb00933ae254
+
+	column recall_pct
+		dataType: double
+		sourceColumn: recall_pct
+		formatString: 0.000
+		summarizeBy: sum
+		lineageTag: bac91251-969e-56af-aaa6-c90f58061a7a
+
+	measure LatestPrecisionPct = MAXX(TOPN(1, model_performance_log, model_performance_log[month], DESC), model_performance_log[precision_pct])
+		formatString: 0.0%
+		lineageTag: 9d69ae42-dba6-5d7a-bfff-2e9249a84bd9
+
+	measure LatestRecallPct = MAXX(TOPN(1, model_performance_log, model_performance_log[month], DESC), model_performance_log[recall_pct])
+		formatString: 0.0%
+		lineageTag: 2fcd573c-d13f-5839-9818-dcf1f1277558
+
+	partition model_performance_log = m
+		mode: directQuery
+		source =
+			let
+				Source = Databricks.Catalogs(workspace_host, http_path, null),
+				catalog = Source{[Name=catalog_name]}[Data],
+				schema = catalog{[Name=schema_name]}[Data],
+				tbl = schema{[Name="model_performance_log"]}[Data]
+			in
+				tbl
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_TableLineageTag = a98b3bd5-c295-5052-b6b1-9bde2447e02d

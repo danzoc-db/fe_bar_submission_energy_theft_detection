@@ -1,0 +1,50 @@
+table smart_meter_reads
+	lineageTag: 2e10f19f-1f31-5da6-9cb5-dd68a735b891
+
+	column account_id
+		dataType: string
+		sourceColumn: account_id
+		summarizeBy: none
+		lineageTag: 2b9b8365-3bbe-59ba-ac54-9f9dac5a2a6c
+
+	column comms_gap_flag
+		dataType: boolean
+		sourceColumn: comms_gap_flag
+		summarizeBy: none
+		lineageTag: 5231d959-6996-5cc9-9091-927cf9f7b53b
+
+	column consumption_kwh
+		dataType: double
+		sourceColumn: consumption_kwh
+		formatString: 0.000
+		summarizeBy: sum
+		lineageTag: 1f7abaa3-757d-5fd5-ae72-f499321d0169
+
+	column fuel_type
+		dataType: string
+		sourceColumn: fuel_type
+		summarizeBy: none
+		lineageTag: f59b8dc4-dc30-53ae-b009-521500a4ea39
+
+	measure DailyConsumptionKWh = SUM(smart_meter_reads[consumption_kwh])
+		formatString: 0.0
+		lineageTag: f500c835-e0d7-55fc-8feb-55bc7ba29de9
+
+	measure CommsGapAccounts = CALCULATE(DISTINCTCOUNT(smart_meter_reads[account_id]), smart_meter_reads[comms_gap_flag] = TRUE())
+		formatString: #,0
+		lineageTag: 613104cc-3204-5ed6-8a1d-3c3aac5cdf14
+
+	partition smart_meter_reads = m
+		mode: directQuery
+		source =
+			let
+				Source = Databricks.Catalogs(workspace_host, http_path, null),
+				catalog = Source{[Name=catalog_name]}[Data],
+				schema = catalog{[Name=schema_name]}[Data],
+				tbl = schema{[Name="smart_meter_reads"]}[Data]
+			in
+				tbl
+
+	annotation PBI_ResultType = Table
+
+	annotation PBI_TableLineageTag = 17ff3213-5ce1-56d2-8ccd-4d04363908eb

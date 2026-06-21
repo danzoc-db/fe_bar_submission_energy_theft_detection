@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200" width="240" height="200">
   <!-- Flame shape -->
-  <path fill="#223C7E" d="M120,8 C105,35 80,55 75,85 C70,110 85,140 120,148 C155,140 170,110 165,85 C160,55 135,35 120,8z"/>
-  <path fill="#2E5CB8" d="M120,30 C110,50 95,65 92,85 C89,105 100,125 120,130 C140,125 151,105 148,85 C145,65 130,50 120,30z"/>
-  <path fill="#FF6B00" d="M120,60 C114,72 105,80 103,92 C101,104 108,116 120,120 C132,116 139,104 137,92 C135,80 126,72 120,60z"/>
-  <path fill="#FFB347" d="M120,80 C117,87 112,92 111,98 C110,105 114,112 120,114 C126,112 130,105 129,98 C128,92 123,87 120,80z"/>
+  <path fill="#002F87" d="M120,8 C105,35 80,55 75,85 C70,110 85,140 120,148 C155,140 170,110 165,85 C160,55 135,35 120,8z"/>
+  <path fill="#0052CC" d="M120,30 C110,50 95,65 92,85 C89,105 100,125 120,130 C140,125 151,105 148,85 C145,65 130,50 120,30z"/>
+  <path fill="#0093F5" d="M120,60 C114,72 105,80 103,92 C101,104 108,116 120,120 C132,116 139,104 137,92 C135,80 126,72 120,60z"/>
+  <path fill="#66C2FF" d="M120,80 C117,87 112,92 111,98 C110,105 114,112 120,114 C126,112 130,105 129,98 C128,92 123,87 120,80z"/>
   <!-- UKI GAS text -->
-  <text x="120" y="180" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="bold" fill="#223C7E" letter-spacing="5">UKI GAS</text>
+  <text x="120" y="180" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="bold" fill="#002F87" letter-spacing="5">UKI GAS</text>
 </svg>
