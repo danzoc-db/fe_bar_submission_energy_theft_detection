@@ -209,17 +209,17 @@ export const fabricCompete: CompeteEntry[] = [
     category: "Architecture",
     messaging: {
       tooltip:
-        "Multi-cloud model routing (GPT, Claude, Bedrock, Gemini) through a single Unity AI Gateway — unified audit, guardrails, and cost attribution governed in Unity Catalog. Azure AI Foundry routes to Azure OpenAI; Bedrock or Gemini require leaving the platform.",
+        "Multi-cloud model routing (GPT, Claude, Bedrock, Gemini) through a single Unity AI Gateway — unified audit, OBO identity, and agentic governance in Unity Catalog. AI Foundry proxies all partner models through Azure infrastructure with no Google model support and no data lineage.",
       callout:
-        "Azure AI Foundry is the model hub for Azure OpenAI and a curated subset of HuggingFace models. Routing to Anthropic (Bedrock) or Google (Gemini) requires separate service wiring with no unified audit. Databricks Unity AI Gateway provides a single endpoint with token-level cost attribution per team or use-case, input/output guardrails, and audit logging that lives next to your data in Unity Catalog — not in a separate Azure Monitor workspace.",
+        "Azure AI Foundry is the model hub for Azure OpenAI and a curated subset of models — all partner traffic is proxied through Azure infrastructure, Google models (Gemini/Gemma) are absent, and routing to Bedrock requires leaving the platform. Governance is siloed: no cross-project lineage, no unified asset catalog, and audit lives in Azure Monitor/App Insights rather than alongside your data. Unity AI Gateway provides a single control plane for models, MCP servers, and agents — governed by Unity Catalog with OBO identity passthrough so agents respect user permissions automatically. Note: Unity AI Gateway is currently in beta (Public Preview targeting July 2026) — validate current GA status before customer commitments.",
       depth: [
-        "AI Foundry's primary model hub is Azure OpenAI — accessing Bedrock or Gemini requires separate API integration with no unified audit trail",
-        "Azure Monitor provides LLM audit separately from AI Foundry's metrics — two dashboards, two alert policies, no single source of truth",
-        "Content filtering in AI Foundry uses Azure Content Safety — a separate service with its own billing and configuration",
-        "Unity AI Gateway token-level cost attribution is scoped to Unity Catalog identity — the same principal that governs your training data governs your LLM spend",
-        "Unity AI Gateway is open by design — any model, any cloud, any endpoint behind one governance layer",
+        "AI Foundry has no Google model support (Gemini/Gemma absent); all partner model traffic is Azure-proxied with undisclosed markup and delayed access to new provider features",
+        "AI Foundry governance is siloed per project with no cross-workspace lineage, no unified asset catalog, and no documented data lineage (battlecard: ❌ None documented)",
+        "Audit logging lives in Azure Monitor/App Insights, not in the Foundry portal — per-principal audit requires Entra ID activity logs; agent tracing is Preview-only",
+        "Unity AI Gateway OBO execution: agents inherit the requesting user's exact permissions via credential passthrough — no manual RBAC setup required",
+        "Unity AI Gateway governs models, MCP servers, and agents as UC securables — the same catalog that governs your training data governs your AI stack",
       ],
-      source: "go/aigateway-vs-foundry-compete (internal)",
+      source: "go/aigateway-vs-foundry-compete (internal) | go/aigateway (demo + FAQ)",
     },
     last_reviewed: "2026-06-21",
   },
