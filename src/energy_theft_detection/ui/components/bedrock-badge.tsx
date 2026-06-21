@@ -7,7 +7,7 @@ import { ExternalLink } from "lucide-react";
 import { useWorkspaceConfig } from "@/lib/workspace-config";
 
 const ENDPOINT_NAME = "energy-theft-bedrock-gateway";
-const MODEL_ID = "Claude 3.5 Haiku";
+const MODEL_ID = "Amazon Nova Lite";
 const PROVIDER = "Amazon Bedrock";
 
 const AWS_ORANGE = "#FF9900";

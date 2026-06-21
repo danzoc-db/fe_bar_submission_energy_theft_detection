@@ -24,7 +24,7 @@ resources:
                 aws_region: "${var.bedrock_aws_region}"
                 aws_access_key_id: "{{secrets/${var.bedrock_secret_scope}/aws-access-key-id}}"
                 aws_secret_access_key: "{{secrets/${var.bedrock_secret_scope}/aws-secret-access-key}}"
-                bedrock_provider: "anthropic"
+                bedrock_provider: "amazon"
       ai_gateway:
         guardrails:
           input:
@@ -127,13 +127,12 @@ resources:
         served_entities:
           - name: "gemini-flash"
             external_model:
-              name: "${var.gemini_model_id}"
-              provider: "google-cloud-vertex-ai"
+              name: "databricks-meta-llama-3-3-70b-instruct"
+              provider: "databricks-model-serving"
               task: "llm/v1/chat"
-              google_cloud_vertex_ai_config:
-                region: "${var.gemini_region}"
-                project_id: "${var.gemini_project_id}"
-                private_key: "{{secrets/${var.gemini_secret_scope}/private-key}}"
+              databricks_model_serving_config:
+                databricks_workspace_url: "${workspace.host}"
+                databricks_api_token: "{{secrets/${var.fmapi_secret_scope}/pat}}"
       ai_gateway:
         guardrails:
           input:
@@ -166,8 +165,6 @@ resources:
       permissions:
         - group_name: "users"
           level: "CAN_USE"
-        - user_name: "john.southcombe@databricks.com"
-          level: "CAN_USE"
       resources:
         - name: "warehouse"
           sql_warehouse:
@@ -189,20 +186,15 @@ resources:
           serving_endpoint:
             name: "energy-theft-llama-gateway"
             permission: "CAN_QUERY"
-        - name: "mas_endpoint"
-          serving_endpoint:
-            name: "${var.mas_endpoint}"
-            permission: "CAN_QUERY"
 
   pipelines:
     medallion_pipeline:
       name: "energy-theft-medallion"
+      serverless: true
       catalog: "${var.catalog}"
       target: "${var.schema}"
       permissions:
         - group_name: "users"
-          level: "CAN_VIEW"
-        - user_name: "john.southcombe@databricks.com"
           level: "CAN_VIEW"
       libraries:
         - file:
@@ -219,8 +211,6 @@ resources:
         timezone_id: "Europe/London"
       permissions:
         - group_name: "users"
-          level: "CAN_VIEW"
-        - user_name: "john.southcombe@databricks.com"
           level: "CAN_VIEW"
       tasks:
         - task_key: "create_schema"
@@ -371,7 +361,7 @@ variables:
     default: "us-west-2"
   bedrock_model_id:
     description: "Bedrock model ID"
-    default: "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+    default: "amazon.nova-lite-v1:0"
   gemini_secret_scope:
     description: "Databricks secret scope containing GCP Vertex AI credentials"
     default: "energy-theft-gemini"
@@ -399,7 +389,7 @@ targets:
       profile: DEFAULT
     artifacts:
       default:
-        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py dz_demos && python3 scripts/verify_app_permissions.py --catalog dz_demos --fix"
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py dz_demos \"\" 01f127aafc2e10a89200349aa20fa460 && python3 scripts/verify_app_permissions.py --catalog dz_demos --genie-space-id 01f127aafc2e10a89200349aa20fa460 --fix"
     variables:
       catalog: "dz_demos"
       sql_warehouse_id: "148ccb90800933a1"
@@ -429,21 +419,12 @@ targets:
               serving_endpoint:
                 name: "energy-theft-llama-gateway"
                 permission: "CAN_QUERY"
-            - name: "mas_endpoint"
-              serving_endpoint:
-                name: "${var.mas_endpoint}"
-                permission: "CAN_QUERY"
-            - name: "genie-space"
-              genie_space:
-                name: "Revenue Protection Executive Intelligence"
-                space_id: "${var.genie_space_id}"
-                permission: "CAN_RUN"
   azsu:
     workspace:
       profile: azsu-centrica-demo
     artifacts:
       default:
-        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py azsu_centrica_demo mas-c41b54be-endpoint && python3 scripts/verify_app_permissions.py --profile azsu-centrica-demo --catalog azsu_centrica_demo --fix"
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py azsu_centrica_demo mas-c41b54be-endpoint 01f137845bff15e1a08bb2ee463075b5 && python3 scripts/verify_app_permissions.py --profile azsu-centrica-demo --catalog azsu_centrica_demo --genie-space-id 01f137845bff15e1a08bb2ee463075b5 --fix"
     variables:
       catalog: "azsu_centrica_demo"
       sql_warehouse_id: "16de76f2a615a8aa"
@@ -487,7 +468,7 @@ targets:
       profile: zoccali-fevm
     artifacts:
       default:
-        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py zoccali_fevm mas-19b119a8-endpoint && python3 scripts/verify_app_permissions.py --profile zoccali-fevm --catalog zoccali_fevm --fix"
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py zoccali_fevm mas-19b119a8-endpoint 01f14ca0cd391270b783302127d14ff0 && python3 scripts/verify_app_permissions.py --profile zoccali-fevm --catalog zoccali_fevm --genie-space-id 01f14ca0cd391270b783302127d14ff0 --fix"
     variables:
       catalog: "zoccali_fevm"
       sql_warehouse_id: "a1749b760390eed6"
@@ -531,7 +512,7 @@ targets:
       profile: azure-field-demo
     artifacts:
       default:
-        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py dz_demos && python3 scripts/verify_app_permissions.py --profile azure-field-demo --catalog dz_demos --fix"
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py dz_demos \"\" 01f127aafc2e10a89200349aa20fa460 && python3 scripts/verify_app_permissions.py --profile azure-field-demo --catalog dz_demos --genie-space-id 01f127aafc2e10a89200349aa20fa460 --fix"
     variables:
       catalog: "dz_demos"
       sql_warehouse_id: "148ccb90800933a1"
@@ -570,3 +551,17 @@ targets:
                 name: "Revenue Protection Executive Intelligence"
                 space_id: "${var.genie_space_id}"
                 permission: "CAN_RUN"
+  zoccali-fevm-aws:
+    workspace:
+      profile: zoccali-fevm-aws
+    artifacts:
+      default:
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py zoccali_fevm \"\" 01f16db6c03419a3b953033d66b5855f && python3 scripts/verify_app_permissions.py --profile zoccali-fevm-aws --catalog zoccali_fevm --genie-space-id 01f16db6c03419a3b953033d66b5855f --fix"
+    variables:
+      catalog: "zoccali_fevm"
+      sql_warehouse_id: "85c1b174d196486d"
+      genie_space_id: "01f16db6c03419a3b953033d66b5855f"
+      # Empty by default; 08_configure_agent_atlas.py creates MAS and prints endpoint name.
+      mas_endpoint: ""
+    resources:
+      apps: {}

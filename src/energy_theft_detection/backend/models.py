@@ -258,6 +258,42 @@ class AuditSummary(BaseModel):
     error_count: int
 
 
+class EndpointBudgetStatus(BaseModel):
+    """Per-endpoint budget consumption and governance status."""
+    endpoint_name: str
+    display_name: str
+    monthly_token_budget: int
+    monthly_usd_budget: float
+    used_tokens_mtd: int
+    used_cost_usd_mtd: float
+    token_budget_pct: float
+    usd_budget_pct: float
+    rate_limit_endpoint_calls_per_min: int
+    rate_limit_user_calls_per_min: int
+    blocked_request_count_mtd: int = 0
+
+
+class BudgetAnomalyAlert(BaseModel):
+    """Daily token-spike alert for governance and cost control."""
+    active: bool
+    latest_day: str | None = None
+    latest_tokens: int = 0
+    trailing_avg_tokens: float = 0.0
+    spike_ratio: float = 0.0
+    message: str = ""
+
+
+class FinOpsSummary(BaseModel):
+    """Unified AI Gateway FinOps/governance summary for the UI."""
+    total_cost_usd_mtd: float
+    total_tokens_mtd: int
+    total_blocked_requests_mtd: int
+    cost_per_investigation_usd: float
+    investigations_mtd: int
+    endpoint_budgets: list[EndpointBudgetStatus]
+    anomaly_alert: BudgetAnomalyAlert
+
+
 class ModelPerformancePoint(BaseModel):
     """Monthly model performance metric."""
     month: str

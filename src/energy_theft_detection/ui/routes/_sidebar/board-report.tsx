@@ -563,7 +563,7 @@ function AgentAtlasHood() {
 
       <HoodSection title="Price / Quality Auto-Optimisation" icon={DollarSign}>
         <HoodBullet icon={Zap} bold="Automatic model routing">
-          Agent Bricks can cascade across model tiers — route simple queries to cheaper models (e.g. Haiku) and complex reasoning to premium models (e.g. Sonnet/Opus) — all behind a single endpoint. No code changes.
+          Agent Bricks can cascade across model tiers — route simple queries to cheaper models (e.g. Nova Lite) and complex reasoning to premium models (e.g. Sonnet/Opus) — all behind a single endpoint. No code changes.
         </HoodBullet>
         <HoodBullet icon={DollarSign} bold="AI Gateway cost controls">
           Rate limits, per-endpoint budgets, and usage tracking via AI Gateway. Set a monthly spend cap and the gateway enforces it, with automatic fallback to lower-cost models before hitting limits.
@@ -616,7 +616,7 @@ function handlePrintReport(report: BoardReport) {
 </style>
 </head><body>
 <h1>${report.report_title}</h1>
-<p class="meta">Generated ${report.generated_at} by Agent Atlas · ${report.genie_questions_asked} Genie queries · Bedrock (Claude 3.5 Haiku) + Gemini 2.0 Flash</p>
+<p class="meta">Generated ${report.generated_at} by Agent Atlas · ${report.genie_questions_asked} Genie queries · Bedrock (Amazon Nova Lite) + Gemini 2.0 Flash</p>
 
 <div class="summary"><strong>Executive Summary</strong><br/>${report.executive_summary}</div>
 

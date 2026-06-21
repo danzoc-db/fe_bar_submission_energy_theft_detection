@@ -460,6 +460,13 @@ function InvestigationKPIRow({
     }
   };
 
+  const formatCompactGbp = (value: number) => {
+    if (value >= 1_000_000_000) return `£${(value / 1_000_000_000).toFixed(1)}B`;
+    if (value >= 1_000_000) return `£${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `£${(value / 1_000).toFixed(1)}K`;
+    return `£${Math.round(value).toLocaleString("en-GB")}`;
+  };
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       <KPITile
@@ -504,7 +511,7 @@ function InvestigationKPIRow({
       />
       <KPITile
         label="Recovered This Month"
-        value={`£${(kpis.revenue_recovered_this_month_gbp / 1000).toFixed(1)}k`}
+        value={formatCompactGbp(kpis.revenue_recovered_this_month_gbp)}
         icon={PoundSterling}
         color="bg-emerald-500"
         iconColor="text-emerald-500"
@@ -1497,7 +1504,7 @@ function BedrockHood() {
     <UnderTheHood title="AI Gateway & Bedrock — Multi-Cloud LLM">
       <HoodSection title="How it's built" icon={Layers}>
         <HoodBullet icon={Cpu} bold="One endpoint, any provider">
-          Claude 3.5 Haiku on AWS Bedrock via a single Databricks API. Swap providers without code changes.
+          Amazon Nova Lite on AWS Bedrock via a single Databricks API. Swap providers without code changes.
         </HoodBullet>
         <HoodBullet icon={Shield} bold="AI governance built in">
           Access control, guardrails, audit, rate limiting — all logged to UC system tables and inference tables. One place.
@@ -1600,7 +1607,7 @@ function BriefingSkeleton() {
               Amazon Bedrock AI Investigation Briefing
             </p>
             <p className="text-xs text-muted-foreground">
-              Generating today's intelligence summary via Claude 3.5 Haiku…
+              Generating today's intelligence summary via Amazon Nova Lite…
             </p>
           </div>
           <div className="w-64 h-1.5 rounded-full bg-muted overflow-hidden">

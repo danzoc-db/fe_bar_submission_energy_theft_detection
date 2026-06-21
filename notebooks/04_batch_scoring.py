@@ -23,6 +23,9 @@ LSTM_MODEL = f"{CATALOG}.{SCHEMA}.lstm_consumption_v2"
 
 import mlflow
 import random
+import io
+import json
+import pickle
 
 mlflow.set_registry_uri("databricks-uc")
 spark.sql(f"USE CATALOG {CATALOG}")
@@ -63,8 +66,49 @@ class LSTMAutoencoder(nn.Module):
     out, _ = self.decoder(latent_seq)
     return self.decoder_proj(out)
 
-if_model = mlflow.sklearn.load_model(f"models:/{IF_MODEL}@champion")
-lstm_model = mlflow.pytorch.load_model(f"models:/{LSTM_MODEL}@champion")
+fallback_table = f"{CATALOG}.{SCHEMA}.model_fallback_store"
+
+def _load_fallback_row(model_name: str):
+  try:
+    row = spark.sql(f"""
+      SELECT model_name, flavor, payload, meta_json, created_at
+      FROM {fallback_table}
+      WHERE model_name = '{model_name}'
+      ORDER BY created_at DESC
+      LIMIT 1
+    """).collect()
+    return row[0] if row else None
+  except Exception:
+    return None
+
+model_source = "uc_registry"
+try:
+  if_model = mlflow.sklearn.load_model(f"models:/{IF_MODEL}@champion")
+except Exception as e:
+  print(f"⚠ Could not load IF model from UC registry, trying Delta fallback: {e}")
+  row = _load_fallback_row(IF_MODEL)
+  if row is None:
+    raise RuntimeError(f"No fallback artifact found for {IF_MODEL}")
+  if_model = pickle.loads(bytes(row["payload"]))
+  model_source = "delta_fallback"
+
+try:
+  lstm_model = mlflow.pytorch.load_model(f"models:/{LSTM_MODEL}@champion")
+except Exception as e:
+  print(f"⚠ Could not load LSTM model from UC registry, trying Delta fallback: {e}")
+  row = _load_fallback_row(LSTM_MODEL)
+  if row is None:
+    raise RuntimeError(f"No fallback artifact found for {LSTM_MODEL}")
+  meta = json.loads(row["meta_json"] or "{}")
+  lstm_model = LSTMAutoencoder(
+    input_dim=int(meta.get("input_dim", 1)),
+    hidden_dim=int(meta.get("hidden_dim", 32)),
+    latent_dim=int(meta.get("latent_dim", 16)),
+    seq_len=int(meta.get("seq_len", 90)),
+  )
+  state_dict = torch.load(io.BytesIO(bytes(row["payload"])), map_location="cpu")
+  lstm_model.load_state_dict(state_dict)
+  model_source = "delta_fallback"
 
 # Get model version info for audit (UC uses full model name)
 client = mlflow.MlflowClient()
@@ -77,6 +121,8 @@ if if_mv:
   print(f"Isolation Forest: version {if_mv.version}, run_id={if_mv.run_id}")
 if lstm_mv:
   print(f"LSTM Autoencoder: version {lstm_mv.version}, run_id={lstm_mv.run_id}")
+if model_source == "delta_fallback":
+  print("Using Delta fallback model artifacts (UC registry unavailable in this workspace).")
 
 # COMMAND ----------
 
@@ -283,7 +329,10 @@ df_composite["risk_tier"] = df_composite["composite_risk_score"].apply(
   lambda x: "HIGH" if x >= high_threshold else ("MEDIUM" if x >= medium_threshold else "LOW")
 )
 
-model_version = f"if_v{getattr(if_mv, 'version', '?')}_lstm_v{getattr(lstm_mv, 'version', '?')}"
+if model_source == "delta_fallback":
+  model_version = "if_fallback_lstm_fallback"
+else:
+  model_version = f"if_v{getattr(if_mv, 'version', '?')}_lstm_v{getattr(lstm_mv, 'version', '?')}"
 score_timestamp = spark.sql("SELECT current_timestamp() AS ts").collect()[0]["ts"]
 df_composite["score_timestamp"] = score_timestamp
 df_composite["fuel_type"] = "electricity"

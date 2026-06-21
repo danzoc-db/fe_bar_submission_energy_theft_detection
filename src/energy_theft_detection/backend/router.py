@@ -37,6 +37,7 @@ from .models import (
     ExternalLineageNode,
     ExternalLineageResponse,
     FlaggedAccountListItem,
+    FinOpsSummary,
     FuelSplitItem,
     FuelType,
     GenieConversation,
@@ -46,6 +47,8 @@ from .models import (
     LLMCaseSummary,
     MeterReadPoint,
     ModelPerformancePoint,
+    BudgetAnomalyAlert,
+    EndpointBudgetStatus,
     PIIFieldAccess,
     RecoveryOpportunity,
     RiskHeatmapPoint,
@@ -1106,12 +1109,34 @@ Respond ONLY with the JSON object. No markdown, no code fences, no extra text.""
                     choices = data.get("choices", [])
                     if choices:
                         raw = choices[0].get("message", {}).get("content", "")
+                        cleaned = (raw or "").strip()
+                        if cleaned.startswith("```"):
+                            cleaned = cleaned.removeprefix("```json").removeprefix("```").strip()
+                            if cleaned.endswith("```"):
+                                cleaned = cleaned[:-3].strip()
+
+                        parsed = None
                         try:
-                            parsed = _json.loads(raw)
-                            briefing_text = parsed.get("summary", "")
-                            actions = parsed.get("actions", [])
+                            parsed = _json.loads(cleaned)
                         except (_json.JSONDecodeError, TypeError):
-                            briefing_text = raw
+                            # Some providers prepend extra text; extract JSON object if present.
+                            start = cleaned.find("{")
+                            end = cleaned.rfind("}")
+                            if start != -1 and end != -1 and end > start:
+                                try:
+                                    parsed = _json.loads(cleaned[start : end + 1])
+                                except (_json.JSONDecodeError, TypeError):
+                                    parsed = None
+
+                        if isinstance(parsed, dict):
+                            briefing_text = str(parsed.get("summary", "")).strip()
+                            raw_actions = parsed.get("actions", [])
+                            if isinstance(raw_actions, list):
+                                actions = [str(a).strip() for a in raw_actions if str(a).strip()]
+                            elif raw_actions:
+                                actions = [str(raw_actions).strip()]
+                        else:
+                            briefing_text = cleaned
         except Exception as e:
             logger.error(f"Daily briefing AI call failed: {e}")
 
@@ -3324,12 +3349,38 @@ _GATEWAY_ENDPOINTS = (
 _GATEWAY_IN_CLAUSE = ", ".join(f"'{e}'" for e in _GATEWAY_ENDPOINTS)
 
 _COST_PER_TOKEN: dict[str, tuple[float, float]] = {
-    "energy-theft-bedrock-gateway": (0.25 / 1e6, 1.25 / 1e6),      # Claude 3.5 Haiku
+    "energy-theft-bedrock-gateway": (0.06 / 1e6, 0.24 / 1e6),      # Amazon Nova Lite (demo estimate)
     "energy-theft-gemini-gateway": (0.075 / 1e6, 0.30 / 1e6),      # Gemini 2.0 Flash
     "energy-theft-openai-gateway": (0.15 / 1e6, 0.60 / 1e6),       # GPT-4o Mini via FMAPI
     "energy-theft-llama-gateway": (0.07 / 1e6, 0.07 / 1e6),        # Llama 3.1 70B via FMAPI (DBRX pricing)
 }
-_DEFAULT_COST = (0.25 / 1e6, 1.25 / 1e6)
+_DEFAULT_COST = (0.06 / 1e6, 0.24 / 1e6)
+_ENDPOINT_BUDGETS: dict[str, dict[str, float | int | str]] = {
+    # Demo-friendly budgets: keep monthly spend around ~$500 per endpoint
+    # and avoid very large token budget figures in the UI.
+    "energy-theft-bedrock-gateway": {
+        "display_name": "Bedrock Nova Lite",
+        "monthly_token_budget": 500,
+        "monthly_usd_budget": 500.0,
+    },
+    "energy-theft-openai-gateway": {
+        "display_name": "Foundation Model API (Claude/Sonnet)",
+        "monthly_token_budget": 500,
+        "monthly_usd_budget": 500.0,
+    },
+    "energy-theft-llama-gateway": {
+        "display_name": "Foundation Model API (GPT-OSS/Llama)",
+        "monthly_token_budget": 500,
+        "monthly_usd_budget": 500.0,
+    },
+    "energy-theft-gemini-gateway": {
+        "display_name": "Foundation Model API (Gemini route)",
+        "monthly_token_budget": 500,
+        "monthly_usd_budget": 500.0,
+    },
+}
+_RL_ENDPOINT_PER_MIN = 30
+_RL_USER_PER_MIN = 10
 
 def _row_cost(endpoint_name: str, input_tokens: int, output_tokens: int) -> float:
     inp_rate, out_rate = _COST_PER_TOKEN.get(endpoint_name, _DEFAULT_COST)
@@ -3441,6 +3492,153 @@ async def get_audit_summary(request: Request):
         total_cost_usd=0.0,
         avg_latency_ms=0.0,
         error_count=0,
+    )
+
+
+@api.get(
+    "/governance/finops",
+    response_model=FinOpsSummary,
+    operation_id="getFinOpsSummary",
+)
+async def get_finops_summary(request: Request):
+    """Cost/governance KPIs from AI Gateway usage + investigations.
+
+    Backed by system.serving.endpoint_usage as source-of-truth for token/cost
+    telemetry. Includes per-model budgets, blocked-request KPI, cost-per-
+    investigation, and daily spike detection.
+    """
+    db = _sql(request)
+    if not db:
+        return FinOpsSummary(
+            total_cost_usd_mtd=0.0,
+            total_tokens_mtd=0,
+            total_blocked_requests_mtd=0,
+            cost_per_investigation_usd=0.0,
+            investigations_mtd=0,
+            endpoint_budgets=[],
+            anomaly_alert=BudgetAnomalyAlert(active=False, message="No SQL warehouse configured."),
+        )
+
+    try:
+        by_endpoint = db.execute(f"""
+            SELECT
+              se.endpoint_name,
+              COALESCE(SUM(eu.input_token_count), 0) AS input_tokens,
+              COALESCE(SUM(eu.output_token_count), 0) AS output_tokens,
+              COUNT(*) AS calls,
+              COUNT_IF(COALESCE(eu.status_code, 200) >= 400) AS blocked_or_error_calls
+            FROM system.serving.endpoint_usage eu
+            JOIN system.serving.served_entities se
+              ON eu.served_entity_id = se.served_entity_id
+            WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+              AND DATE_TRUNC('month', eu.request_time) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
+            GROUP BY se.endpoint_name
+        """)
+    except Exception as e:
+        logger.error(f"FinOps endpoint aggregation failed: {e}")
+        by_endpoint = []
+
+    try:
+        daily_rows = db.execute(f"""
+            SELECT
+              DATE(eu.request_time) AS day,
+              COALESCE(SUM(eu.input_token_count + eu.output_token_count), 0) AS total_tokens
+            FROM system.serving.endpoint_usage eu
+            JOIN system.serving.served_entities se
+              ON eu.served_entity_id = se.served_entity_id
+            WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+              AND eu.request_time >= CURRENT_TIMESTAMP() - INTERVAL 14 DAYS
+            GROUP BY DATE(eu.request_time)
+            ORDER BY day
+        """)
+    except Exception as e:
+        logger.error(f"FinOps daily token query failed: {e}")
+        daily_rows = []
+
+    try:
+        # Align with dashboard storytelling: confirmed theft outcomes closed this month.
+        inv_rows = db.execute("""
+            SELECT COUNT(*) AS c
+            FROM investigation_cases
+            WHERE outcome = 'THEFT_CONFIRMED'
+              AND DATE_TRUNC('month', closed_timestamp) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
+        """)
+        investigations_mtd = int(inv_rows[0]["c"] or 0) if inv_rows else 0
+    except Exception:
+        investigations_mtd = 0
+
+    agg: dict[str, dict[str, int]] = {
+        ep: {"input": 0, "output": 0, "blocked": 0}
+        for ep in _GATEWAY_ENDPOINTS
+    }
+    for r in by_endpoint:
+        ep = r["endpoint_name"]
+        if ep not in agg:
+            continue
+        agg[ep]["input"] = int(r["input_tokens"] or 0)
+        agg[ep]["output"] = int(r["output_tokens"] or 0)
+        agg[ep]["blocked"] = int(r["blocked_or_error_calls"] or 0)
+
+    endpoint_budgets: list[EndpointBudgetStatus] = []
+    total_cost = 0.0
+    total_tokens = 0
+    total_blocked = 0
+    for ep in _GATEWAY_ENDPOINTS:
+        input_t = agg[ep]["input"]
+        output_t = agg[ep]["output"]
+        blocked = agg[ep]["blocked"]
+        used_tokens = input_t + output_t
+        used_cost = _row_cost(ep, input_t, output_t)
+        total_cost += used_cost
+        total_tokens += used_tokens
+        total_blocked += blocked
+        budget_conf = _ENDPOINT_BUDGETS.get(ep, {})
+        token_budget = int(budget_conf.get("monthly_token_budget", 1_000_000))
+        usd_budget = float(budget_conf.get("monthly_usd_budget", 10.0))
+        endpoint_budgets.append(
+            EndpointBudgetStatus(
+                endpoint_name=ep,
+                display_name=str(budget_conf.get("display_name", ep)),
+                monthly_token_budget=token_budget,
+                monthly_usd_budget=usd_budget,
+                used_tokens_mtd=used_tokens,
+                used_cost_usd_mtd=round(used_cost, 4),
+                token_budget_pct=round(min(100.0, (used_tokens / max(token_budget, 1)) * 100), 1),
+                usd_budget_pct=round(min(100.0, (used_cost / max(usd_budget, 0.0001)) * 100), 1),
+                rate_limit_endpoint_calls_per_min=_RL_ENDPOINT_PER_MIN,
+                rate_limit_user_calls_per_min=_RL_USER_PER_MIN,
+                blocked_request_count_mtd=blocked,
+            )
+        )
+
+    daily_series = [int(r.get("total_tokens", 0) or 0) for r in daily_rows]
+    anomaly = BudgetAnomalyAlert(active=False, message="No token spike detected in trailing 14 days.")
+    if len(daily_series) >= 4:
+        latest = daily_series[-1]
+        trailing = daily_series[:-1]
+        trailing_avg = sum(trailing) / max(len(trailing), 1)
+        ratio = (latest / trailing_avg) if trailing_avg > 0 else 0.0
+        # Alert when latest day materially exceeds baseline usage.
+        if latest >= 25_000 and ratio >= 1.8:
+            latest_day = str(daily_rows[-1]["day"]) if daily_rows else None
+            anomaly = BudgetAnomalyAlert(
+                active=True,
+                latest_day=latest_day,
+                latest_tokens=latest,
+                trailing_avg_tokens=round(trailing_avg, 1),
+                spike_ratio=round(ratio, 2),
+                message="Daily token usage spike detected — investigate traffic burst or retry loop.",
+            )
+
+    cpi = (total_cost / investigations_mtd) if investigations_mtd > 0 else 0.0
+    return FinOpsSummary(
+        total_cost_usd_mtd=round(total_cost, 4),
+        total_tokens_mtd=total_tokens,
+        total_blocked_requests_mtd=total_blocked,
+        cost_per_investigation_usd=round(cpi, 4),
+        investigations_mtd=investigations_mtd,
+        endpoint_budgets=endpoint_budgets,
+        anomaly_alert=anomaly,
     )
 
 

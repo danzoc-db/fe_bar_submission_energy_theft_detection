@@ -23,6 +23,21 @@ SCHEMA = dbutils.widgets.get("schema")
 GENIE_SPACE_ID = dbutils.widgets.get("genie_space_id")
 APP_NAME = dbutils.widgets.get("app_name")
 
+if not GENIE_SPACE_ID:
+    # AWS first-runs often create Genie in a prior task without wiring the id back
+    # into this widget. Resolve by title so the end-to-end pipeline stays portable.
+    try:
+        from databricks.sdk import WorkspaceClient
+
+        _w = WorkspaceClient()
+        _spaces = _w.genie_spaces.list()
+        for _s in _spaces:
+            if (_s.title or "") == "Revenue Protection Executive Intelligence":
+                GENIE_SPACE_ID = _s.id or ""
+                break
+    except Exception as e:
+        print(f"⚠ Could not auto-discover Genie Space ID: {e}")
+
 assert GENIE_SPACE_ID, "genie_space_id is required — the MAS routes data queries to the Genie Space"
 
 print(f"Catalog: {CATALOG}")

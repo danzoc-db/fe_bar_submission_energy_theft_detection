@@ -49,12 +49,15 @@ import {
   Lock,
   ShieldCheck,
   LayoutDashboard,
+  TrendingUp,
+  Gauge,
 } from "lucide-react";
 import {
   useGetPIIMatrixSuspense,
   useGetAIComponentsSuspense,
   useGetAIGatewayAuditSuspense,
   useGetAuditSummarySuspense,
+  useGetFinOpsSummarySuspense,
   useGetColumnMetadataSuspense,
   useGetExternalLineage,
   getAIComponents,
@@ -67,6 +70,8 @@ import {
   getAIGatewayAuditKey,
   getAuditSummary,
   getAuditSummaryKey,
+  getFinOpsSummary,
+  getFinOpsSummaryKey,
   getDashboardKPIs,
   getDashboardKPIsKey,
   getInvestigationKPIs,
@@ -119,6 +124,7 @@ export const Route = createFileRoute("/_sidebar/governance")({
     queryClient.ensureQueryData({ queryKey: getColumnMetadataKey(), queryFn: getColumnMetadata, staleTime: GOV_STALE });
     queryClient.ensureQueryData({ queryKey: getAIGatewayAuditKey(), queryFn: () => getAIGatewayAudit() });
     queryClient.ensureQueryData({ queryKey: getAuditSummaryKey(), queryFn: getAuditSummary });
+    queryClient.ensureQueryData({ queryKey: getFinOpsSummaryKey(), queryFn: getFinOpsSummary });
 
     return Promise.all([
       queryClient.ensureQueryData({ queryKey: getAIComponentsKey(), queryFn: getAIComponents, staleTime: GOV_STALE }),
@@ -577,7 +583,7 @@ function buildLineageNodes(ws: WorkspaceConfig, piiLookup: PiiLookup, descriptio
       kind: "llm",
       icon: Cloud,
       databricksUrl: `${ws.workspace_url}/ml/endpoints/energy-theft-bedrock-gateway`,
-      description: "Amazon Bedrock Claude via AI Gateway. Generates natural-language case summaries and field dispatch reports from account risk data.",
+      description: "Amazon Bedrock Nova Lite via AI Gateway. Generates natural-language case summaries and field dispatch reports from account risk data.",
       columns: [
         { name: "account_id", pii: "PII" },
         { name: "risk_score_input", pii: null },
@@ -736,10 +742,22 @@ function LineageDAG() {
     return [...baseLineageNodes, ...buildExternalNodes(externalLineage.nodes)];
   }, [baseLineageNodes, showExternal, externalLineage]);
 
+  // When External Lineage is enabled, swap the downstream lane from
+  // "LLM / Outputs" to "External BI" for a cleaner visual story:
+  // Source -> ML Models -> Scored Output -> External BI
+  // (instead of rendering both downstream families at once).
   const allEdges = useMemo(() => {
-    if (!showExternal || !externalLineage) return LINEAGE_EDGES;
-    return [...LINEAGE_EDGES, ...buildExternalEdges(externalLineage.edges)];
-  }, [showExternal, externalLineage]);
+    if (!showExternal) return LINEAGE_EDGES;
+    const baseWithoutLlmOutcome = LINEAGE_EDGES.filter((e) => {
+      const fromNode = e.from.split(".")[0];
+      const toNode = e.to.split(".")[0];
+      const from = LINEAGE_NODES.find((n) => n.id === fromNode);
+      const to = LINEAGE_NODES.find((n) => n.id === toNode);
+      const isLlmOutcomeEdge = from?.kind === "llm" || from?.kind === "outcome" || to?.kind === "llm" || to?.kind === "outcome";
+      return !isLlmOutcomeEdge;
+    });
+    return externalLineage ? [...baseWithoutLlmOutcome, ...buildExternalEdges(externalLineage.edges)] : baseWithoutLlmOutcome;
+  }, [showExternal, externalLineage, LINEAGE_NODES]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -797,16 +815,20 @@ function LineageDAG() {
   }
 
   const columns = useMemo(() => {
-    const base: { label: string; kinds: NodeKind[] }[] = [
-      { label: "Source", kinds: ["source"] },
-      { label: "ML Models", kinds: ["ml"] },
-      { label: "Scored Output", kinds: ["scored"] },
-      { label: "LLM / Outputs", kinds: ["llm", "outcome"] },
-    ];
     if (showExternal) {
-      base.push({ label: "External BI", kinds: ["external_bi"] });
+      return [
+        { label: "Source", kinds: ["source"] as NodeKind[] },
+        { label: "ML Models", kinds: ["ml"] as NodeKind[] },
+        { label: "Scored Output", kinds: ["scored"] as NodeKind[] },
+        { label: "External BI", kinds: ["external_bi"] as NodeKind[] },
+      ];
     }
-    return base;
+    return [
+      { label: "Source", kinds: ["source"] as NodeKind[] },
+      { label: "ML Models", kinds: ["ml"] as NodeKind[] },
+      { label: "Scored Output", kinds: ["scored"] as NodeKind[] },
+      { label: "LLM / Outputs", kinds: ["llm", "outcome"] as NodeKind[] },
+    ];
   }, [showExternal]);
 
   return (
@@ -916,9 +938,8 @@ function LineageDAG() {
               })}
             </svg>
 
-            {/* Node grid — Tailwind needs literal class strings to compile,
-                so we ternary on the full token rather than templating it. */}
-            <div className={`relative grid ${showExternal ? "grid-cols-5" : "grid-cols-4"} gap-x-16 gap-y-4`} style={{ zIndex: 2 }}>
+            {/* Node grid */}
+            <div className="relative grid grid-cols-4 gap-x-16 gap-y-4" style={{ zIndex: 2 }}>
               {columns.map((col) => (
                 <div key={col.label} className="space-y-3">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground text-center">
@@ -1052,6 +1073,44 @@ function LineageDAG() {
                         <span className="truncate">{selectedNode.externalUrl}</span>
                       </a>
                     )}
+                    {(() => {
+                      const upstreamTable = allEdges
+                        .filter((e) => e.to.startsWith(selectedNode.id + "."))
+                        .map((e) => e.from.split(".")[0])
+                        .find((id) => id && id !== "external_bi");
+                      const upstreamUcUrl = upstreamTable && wsConfig
+                        ? catalogExplorerUrl(wsConfig, upstreamTable)
+                        : "";
+                      const schemaUcUrl = wsConfig
+                        ? `${wsConfig.workspace_url}/explore/data/${wsConfig.catalog}/${wsConfig.schema_name}`
+                        : "";
+                      return (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {upstreamUcUrl && (
+                            <a
+                              href={upstreamUcUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-md border border-[#F2C811]/50 bg-[#F2C811]/10 text-[#A38000] dark:text-[#F2C811] hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View upstream UC table lineage
+                            </a>
+                          )}
+                          {schemaUcUrl && (
+                            <a
+                              href={schemaUcUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-md border border-[#F2C811]/50 bg-[#F2C811]/10 text-[#A38000] dark:text-[#F2C811] hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Open Unity Catalog schema
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -1170,12 +1229,20 @@ function AuditPanel() {
     ...selector(),
     query: { ...selector().query, refetchInterval: AUDIT_REFETCH_MS },
   } as Parameters<typeof useGetAuditSummarySuspense>[0]);
+  const { data: finops } = useGetFinOpsSummarySuspense({
+    ...selector(),
+    query: { ...selector().query, refetchInterval: AUDIT_REFETCH_MS },
+  } as Parameters<typeof useGetFinOpsSummarySuspense>[0]);
 
   const fmtTokens = (n: number) =>
     n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n);
 
   const fmtCost = (n: number) =>
     n >= 1 ? `$${n.toFixed(2)}` : n >= 0.01 ? `$${n.toFixed(3)}` : `$${n.toFixed(4)}`;
+  const fmtCostCompact = (n: number) =>
+    n >= 1 ? `$${n.toFixed(2)}` : n >= 0.01 ? `$${n.toFixed(3)}` : n >= 0.0001 ? `$${n.toFixed(4)}` : "<$0.0001";
+  const pctClass = (pct: number) =>
+    pct >= 100 ? "bg-red-500" : pct >= 85 ? "bg-amber-500" : pct >= 70 ? "bg-yellow-500" : "bg-emerald-500";
 
   const summaryCards = [
     { label: "Total Calls", value: summary.total_calls.toLocaleString(), icon: Activity, color: "text-accent" },
@@ -1287,6 +1354,106 @@ function AuditPanel() {
               </Table>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Gateway FinOps Story (Monthly)</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Source of truth is <code className="text-xs bg-muted px-1 py-0.5 rounded">system.serving.endpoint_usage</code> and
+            Unity Catalog investigations. This connects governance controls directly to business impact.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { label: "MTD AI Cost", value: fmtCost(finops.total_cost_usd_mtd), icon: Coins, color: "text-amber-500" },
+              { label: "MTD Tokens", value: fmtTokens(finops.total_tokens_mtd), icon: Hash, color: "text-blue-500" },
+              { label: "Blocked by Guardrails", value: String(finops.total_blocked_requests_mtd), icon: ShieldCheck, color: finops.total_blocked_requests_mtd > 0 ? "text-orange-500" : "text-emerald-500" },
+              { label: "Confirmed Cases MTD", value: finops.investigations_mtd.toLocaleString(), icon: Activity, color: "text-violet-500" },
+              { label: "AI Cost / Investigation", value: fmtCostCompact(finops.cost_per_investigation_usd), icon: Gauge, color: "text-fuchsia-500" },
+            ].map((s) => (
+              <Card key={s.label}>
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
+                      <p className="text-xl font-bold tracking-tight mt-1">{s.value}</p>
+                    </div>
+                    <s.icon className={`h-5 w-5 ${s.color}`} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground -mt-1">
+            AI Cost / Investigation = month-to-date AI Gateway spend divided by month-to-date confirmed theft cases closed in UC.
+          </p>
+
+          <div className="grid md:grid-cols-2 gap-3">
+            {finops.endpoint_budgets.map((b) => (
+              <div key={b.endpoint_name} className="rounded-lg border p-3 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <EndpointBadge name={b.endpoint_name} />
+                    <span className="text-sm font-medium">{b.display_name}</span>
+                    {b.display_name.includes("Bedrock") && (
+                      <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600">
+                        Lowest budget by design
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    RL: {b.rate_limit_endpoint_calls_per_min}/min endpoint · {b.rate_limit_user_calls_per_min}/min user
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Token Budget</span>
+                      <span className="font-medium">{fmtTokens(b.used_tokens_mtd)} / {fmtTokens(b.monthly_token_budget)} ({b.token_budget_pct.toFixed(1)}%)</span>
+                    </div>
+                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full ${pctClass(b.token_budget_pct)}`} style={{ width: `${Math.min(100, b.token_budget_pct)}%` }} />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Cost Budget</span>
+                      <span className="font-medium">{fmtCost(b.used_cost_usd_mtd)} / {fmtCost(b.monthly_usd_budget)} ({b.usd_budget_pct.toFixed(1)}%)</span>
+                    </div>
+                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full ${pctClass(b.usd_budget_pct)}`} style={{ width: `${Math.min(100, b.usd_budget_pct)}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Blocked/denied calls this month: <span className="font-semibold">{b.blocked_request_count_mtd}</span> ·
+                  demonstrates guardrail enforcement reducing unsafe data exfiltration risk.
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className={`rounded-lg border p-3 ${finops.anomaly_alert.active ? "border-red-300 bg-red-50/50 dark:bg-red-950/20" : "border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20"}`}>
+            <div className="flex items-start gap-2">
+              <TrendingUp className={`h-4 w-4 mt-0.5 ${finops.anomaly_alert.active ? "text-red-500" : "text-emerald-500"}`} />
+              <div className="text-sm">
+                <p className="font-medium">
+                  {finops.anomaly_alert.active ? "Budget anomaly detector: spike detected" : "Budget anomaly detector: normal"}
+                </p>
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  {finops.anomaly_alert.message}
+                  {finops.anomaly_alert.active && (
+                    <>
+                      {" "}({finops.anomaly_alert.latest_day}: {fmtTokens(finops.anomaly_alert.latest_tokens)} vs trailing {fmtTokens(Math.round(finops.anomaly_alert.trailing_avg_tokens))}, {finops.anomaly_alert.spike_ratio.toFixed(2)}x)
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

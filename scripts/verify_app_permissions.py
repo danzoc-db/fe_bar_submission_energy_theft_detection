@@ -15,7 +15,7 @@ import argparse
 import sys
 
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.iam import ObjectPermissions
+from databricks.sdk.service.iam import AccessControlRequest, ObjectPermissions, PermissionLevel
 
 
 APP_NAME = "energy-theft-detection"
@@ -37,7 +37,9 @@ def get_app_info(w: WorkspaceClient) -> tuple[str, str]:
 
 def check_warehouse_permission(w: WorkspaceClient, sp_id: str, wh_id: str) -> bool:
     """Check if the SP has CAN_USE on the warehouse."""
-    perms: ObjectPermissions = w.permissions.get("sql/warehouses", wh_id)
+    if not wh_id:
+        return False
+    perms: ObjectPermissions = w.permissions.get("warehouses", wh_id)
     for acl in perms.access_control_list or []:
         if acl.service_principal_name == sp_id:
             for p in acl.all_permissions or []:
@@ -47,14 +49,47 @@ def check_warehouse_permission(w: WorkspaceClient, sp_id: str, wh_id: str) -> bo
 
 
 def fix_warehouse_permission(w: WorkspaceClient, sp_id: str, wh_id: str) -> None:
-    from databricks.sdk.service.iam import AccessControlRequest, PermissionLevel
+    if not wh_id:
+        return
     w.permissions.update(
-        "sql/warehouses",
+        "warehouses",
         wh_id,
         access_control_list=[
             AccessControlRequest(
                 service_principal_name=sp_id,
                 permission_level=PermissionLevel.CAN_USE,
+            )
+        ],
+    )
+
+
+def check_genie_permission(w: WorkspaceClient, sp_id: str, genie_space_id: str) -> bool:
+    """Check if the SP has CAN_RUN (or higher) on the Genie space."""
+    if not genie_space_id:
+        return False
+    try:
+        perms: ObjectPermissions = w.permissions.get("genie", genie_space_id)
+    except Exception:
+        return False
+
+    for acl in perms.access_control_list or []:
+        if acl.service_principal_name == sp_id:
+            for p in acl.all_permissions or []:
+                if p.permission_level and p.permission_level.value in ("CAN_RUN", "CAN_MANAGE", "IS_OWNER"):
+                    return True
+    return False
+
+
+def fix_genie_permission(w: WorkspaceClient, sp_id: str, genie_space_id: str) -> None:
+    if not genie_space_id:
+        return
+    w.permissions.update(
+        "genie",
+        genie_space_id,
+        access_control_list=[
+            AccessControlRequest(
+                service_principal_name=sp_id,
+                permission_level=PermissionLevel.CAN_RUN,
             )
         ],
     )
@@ -125,6 +160,7 @@ def main():
     parser.add_argument("--fix", action="store_true", help="Auto-fix missing permissions")
     parser.add_argument("--catalog", default=DEFAULT_CATALOG, help=f"UC catalog (default: {DEFAULT_CATALOG})")
     parser.add_argument("--schema", default=DEFAULT_SCHEMA, help=f"UC schema (default: {DEFAULT_SCHEMA})")
+    parser.add_argument("--genie-space-id", default="", help="Genie Space ID for CAN_RUN verification/fix")
     args = parser.parse_args()
 
     catalog = args.catalog
@@ -145,13 +181,21 @@ def main():
         sys.exit(1)
     print(f"App SP:    {sp_id}")
     print(f"Warehouse: {wh_id}")
+    if not wh_id:
+        print("⚠ App has no SQL warehouse resource yet — skipping permission verification on this run.")
+        print("  Re-run after deploy once app resources are attached.")
+        sys.exit(0)
     check_schema_grants._wh_id = wh_id
 
     all_ok = True
+    genie_space_id = args.genie_space_id.strip()
 
     # 1. Warehouse CAN_USE
     print("\n[1/2] SQL Warehouse CAN_USE")
-    if check_warehouse_permission(w, sp_id, wh_id):
+    if not wh_id:
+        all_ok = False
+        print("  ❌ No SQL warehouse resource bound to app yet")
+    elif check_warehouse_permission(w, sp_id, wh_id):
         print("  ✅ CAN_USE granted")
     else:
         all_ok = False
@@ -160,8 +204,22 @@ def main():
             fix_warehouse_permission(w, sp_id, wh_id)
             print("  ✅ Fixed — CAN_USE granted")
 
-    # 2. Schema grants
-    print(f"\n[2/3] Unity Catalog grants on {schema_fqn}")
+    # 2. Genie CAN_RUN (explicit for app runtime SP)
+    print(f"\n[2/4] Genie Space CAN_RUN")
+    if not genie_space_id:
+        all_ok = False
+        print("  ❌ Genie Space ID not provided to verifier (--genie-space-id)")
+    elif check_genie_permission(w, sp_id, genie_space_id):
+        print(f"  ✅ CAN_RUN granted on {genie_space_id}")
+    else:
+        all_ok = False
+        print(f"  ❌ CAN_RUN missing on {genie_space_id}")
+        if args.fix:
+            fix_genie_permission(w, sp_id, genie_space_id)
+            print("  ✅ Fixed — CAN_RUN granted")
+
+    # 3. Schema grants
+    print(f"\n[3/4] Unity Catalog grants on {schema_fqn}")
     grants = check_schema_grants(w, sp_id, catalog, schema_fqn)
     missing = [g for g, ok in grants.items() if not ok]
     for grant, ok in grants.items():
@@ -171,9 +229,9 @@ def main():
         if args.fix:
             fix_schema_grants(w, sp_id, missing, catalog, schema_fqn)
 
-    # 3. MODIFY on tables that the close-investigation endpoint writes to
+    # 4. MODIFY on tables that the close-investigation endpoint writes to
     writable_tables = ["investigation_cases", "anomaly_scores"]
-    print(f"\n[3/3] MODIFY grants on writable tables")
+    print(f"\n[4/4] MODIFY grants on writable tables")
     for tbl in writable_tables:
         tbl_fqn = f"{schema_fqn}.{tbl}"
         has_modify = False

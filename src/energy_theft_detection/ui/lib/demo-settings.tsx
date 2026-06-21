@@ -21,7 +21,7 @@ export const MODEL_CONFIGS: Record<ModelKey, ModelConfig> = {
     key: "bedrock",
     label: "Amazon Bedrock",
     provider: "Amazon Bedrock",
-    model: "Claude 3.5 Haiku",
+    model: "Amazon Nova Lite",
     endpointName: "energy-theft-bedrock-gateway",
     color: "#FF9900",
     iconColor: "text-[#FF9900]",

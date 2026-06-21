@@ -11,7 +11,7 @@ env:
   - name: "LLAMA_GATEWAY_ENDPOINT"
     value: "energy-theft-llama-gateway"
   - name: "GENIE_SPACE_ID"
-    valueFrom: "genie-space"
+    value: ""  # GENIE_SPACE_ID
   - name: "MAS_ENDPOINT"
     value: ""  # MAS_ENDPOINT
   - name: "CATALOG"

@@ -22,6 +22,8 @@ SCHEMA = dbutils.widgets.get("schema")
 MODEL_NAME = f"{CATALOG}.{SCHEMA}.isolation_forest_theft_v3"
 
 import mlflow
+import pickle
+from datetime import datetime
 
 mlflow.set_registry_uri("databricks-uc")
 spark.sql(f"USE CATALOG {CATALOG}")
@@ -118,11 +120,16 @@ with mlflow.start_run(run_name="isolation_forest_theft_v3"):
     "pct_high_risk": float((pd.Series(isolation_forest_scores) >= 0.7).mean() * 100),
   })
 
-  mlflow.sklearn.log_model(
-    model, "model",
-    registered_model_name=MODEL_NAME,
-    input_example=pdf[FEATURE_COLS].head(5),
-  )
+  registry_ok = True
+  try:
+    mlflow.sklearn.log_model(
+      model, "model",
+      registered_model_name=MODEL_NAME,
+      input_example=pdf[FEATURE_COLS].head(5),
+    )
+  except Exception as e:
+    registry_ok = False
+    print(f"⚠ UC model registry upload failed, falling back to Delta model store: {e}")
 
   # --- Diagnostic Artifacts ---
   import matplotlib
@@ -184,12 +191,37 @@ with mlflow.start_run(run_name="isolation_forest_theft_v3"):
 
   run_id = mlflow.active_run().info.run_id
   print(f"Run ID: {run_id}")
-  print(f"Model registered: {MODEL_NAME}")
+  if registry_ok:
+    print(f"Model registered: {MODEL_NAME}")
+  else:
+    print("Model not registered in UC due to storage policy deny.")
 
-client = mlflow.MlflowClient()
-latest = max(client.search_model_versions(f"name='{MODEL_NAME}'"), key=lambda v: int(v.version))
-client.set_registered_model_alias(MODEL_NAME, "champion", latest.version)
-print(f"Set @champion alias to version {latest.version}")
+if registry_ok:
+  client = mlflow.MlflowClient()
+  latest = max(client.search_model_versions(f"name='{MODEL_NAME}'"), key=lambda v: int(v.version))
+  client.set_registered_model_alias(MODEL_NAME, "champion", latest.version)
+  print(f"Set @champion alias to version {latest.version}")
+  model_source = f"uc_registry_v{latest.version}"
+else:
+  fallback_table = f"{CATALOG}.{SCHEMA}.model_fallback_store"
+  spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {fallback_table} (
+      model_name STRING,
+      flavor STRING,
+      payload BINARY,
+      meta_json STRING,
+      created_at TIMESTAMP
+    )
+  """)
+  spark.sql(f"DELETE FROM {fallback_table} WHERE model_name = '{MODEL_NAME}'")
+  payload = bytearray(pickle.dumps(model))
+  meta_json = '{"framework":"sklearn","kind":"isolation_forest"}'
+  spark.createDataFrame(
+    [(MODEL_NAME, "sklearn", payload, meta_json, datetime.utcnow())],
+    "model_name string, flavor string, payload binary, meta_json string, created_at timestamp",
+  ).write.mode("append").saveAsTable(fallback_table)
+  print(f"Saved fallback model artifact to {fallback_table}")
+  model_source = "delta_fallback"
 
 # COMMAND ----------
 
@@ -227,6 +259,7 @@ import json
 summary = {
   "model_name": MODEL_NAME,
   "run_id": run_id,
+  "model_source": model_source,
   "catalog": CATALOG,
   "schema": SCHEMA,
   "n_accounts_scored": len(scored_pdf),
