@@ -1187,14 +1187,7 @@ function DataEngineeringHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Cost">
-        <p>
-          <strong>Fabric shares Capacity Units</strong> across all workloads — one spike throttles everything. No scale-to-zero; you pay for reserved capacity idle or not.
-        </p>
-        <p>
-          <strong>Duplicated Security & Access Control overhead</strong> — UC policies are not replicated, so people-time is spent ensuring alignment of security and access controls for compliance. Another permission model to maintain.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="capacity-throttle" />
     </UnderTheHood>
   );
 }
@@ -1218,14 +1211,7 @@ function GenieHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Cost">
-        <p>
-          <strong>Power BI Pro/Premium + Copilot</strong> each require per-user or per-capacity licensing. With Genie, we don't charge you a licence to talk to your data — like everything on Databricks, you only pay for what you use.
-        </p>
-        <p>
-          Genie queries Delta tables directly under UC — same governance, same user identity, same lineage. No need to mirror into Fabric, no UC policies to recreate, no propagation lag. KPIs are governed at the source.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="genie-vs-pbi" />
     </UnderTheHood>
   );
 }
@@ -1249,14 +1235,7 @@ function MetricViewHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Governance">
-        <p>
-          <strong>Legacy BI semantic models</strong> require proprietary languages, specialist skill sets, and 20+ measures manually maintained at different granularities. Formulas live outside the governance perimeter.
-        </p>
-        <p>
-          Databricks: one Metric View <em>is</em> the semantic layer — SQL, governed by UC, queryable in Apps, Genie, Agents, and any downstream tool.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="metric-views" />
     </UnderTheHood>
   );
 }

@@ -1487,14 +1487,7 @@ function MLflowHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Speed">
-        <p>
-          <strong>Azure ML developer experience is fragmented</strong> — separate portal, separate auth, separate compute. Practitioners are less productive and can't serve ML & AI use cases the way they can on Databricks.
-        </p>
-        <p>
-          MLflow gives one open API for the full lifecycle. Azure ML + Fabric + Purview + App Service = 4 services, 4 permission models, no shared lineage.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="model-lifecycle" />
     </UnderTheHood>
   );
 }
@@ -1515,17 +1508,7 @@ function BedrockHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Speed">
-        <p>
-          <strong>AI Foundry is Azure-only</strong> — no Bedrock, no multi-cloud.
-        </p>
-        <p>
-          <strong>Audit</strong> lives in Azure Monitor, not with your data.
-        </p>
-        <p>
-          AI Gateway governs all models in a single place — covering what AI Foundry + App Service + Azure Monitor need to stitch together.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="ai-gateway" />
     </UnderTheHood>
   );
 }

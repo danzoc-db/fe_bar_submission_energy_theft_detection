@@ -224,14 +224,7 @@ function UCHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Governance">
-        <p>
-          <strong>Fabric access control is split across 5 engines</strong> — workspace roles, OneLake Storage, SQL Warehouse, DAX row-level security, and KQL. Five permission models, limited automation, and no cross-lineage. Compliance blind spots are inevitable.
-        </p>
-        <p>
-          Purview has no column-level lineage from data to model to LLM. No single audit log. UC solves this out of the box.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="unified-governance" />
     </UnderTheHood>
   );
 }
