@@ -1015,7 +1015,9 @@ async def get_investigation_kpis(request: Request):
 )
 async def get_daily_briefing(request: Request):
     """AI-generated daily focus summary for Robbie via Bedrock."""
-    cached = _cache_get("daily_briefing")
+    model_key = request.headers.get("x-model-key", "bedrock")
+    cache_key = f"daily_briefing:{model_key}"
+    cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
@@ -1101,7 +1103,14 @@ Respond ONLY with the JSON object. No markdown, no code fences, no extra text.""
             with httpx.Client(timeout=30) as http:
                 resp = http.post(
                     f"{host}/serving-endpoints/{ai_endpoint}/invocations",
-                    json={"messages": [{"role": "user", "content": prompt}], "max_tokens": 400},
+                    json={
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 400,
+                        "usage_context": {
+                            "use_case": "robbie_daily_briefing",
+                            "model_key": model_key,
+                        },
+                    },
                     headers=headers,
                 )
                 if resp.status_code == 200:
@@ -1163,7 +1172,7 @@ Respond ONLY with the JSON object. No markdown, no code fences, no extra text.""
         oldest_open_days=oldest_open_days,
         cluster_alert=cluster_alert,
     )
-    _cache_set("daily_briefing", result)
+    _cache_set(cache_key, result)
     return result
 
 
@@ -1406,7 +1415,8 @@ async def get_case_summary(request: Request, account_id: str):
     Optimised: both anomaly_scores and investigation_cases are queried in
     parallel via ThreadPool to halve the latency.
     """
-    cache_key = f"case_summary:{account_id}"
+    model_key = request.headers.get("x-model-key", "bedrock")
+    cache_key = f"case_summary:{account_id}:{model_key}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
@@ -1419,6 +1429,7 @@ async def get_case_summary(request: Request, account_id: str):
     score = 0.0
     gaps = 0
 
+    stored_llm_summary = ""
     if db:
         from concurrent.futures import ThreadPoolExecutor
 
@@ -1456,34 +1467,67 @@ async def get_case_summary(request: Request, account_id: str):
             ]
 
         if case_rows and case_rows[0].get("llm_summary"):
-            raw = case_rows[0]["llm_summary"]
-            cs_result = LLMCaseSummary(
-                account_id=account_id,
-                risk_level=risk_level,
-                key_signals=signals or ["Data from anomaly scoring model"],
-                recommended_action="Dispatch field engineer for meter inspection" if risk_level == "HIGH" else "Monitor and re-score in next batch",
-                priority="URGENT" if risk_level == "HIGH" else "STANDARD",
-                estimated_loss_per_month_gbp=_est_monthly_loss(drop_pct, score),
-                raw_text=raw,
-            )
-            _cache_set(cache_key, cs_result)
-            return cs_result
+            stored_llm_summary = str(case_rows[0]["llm_summary"])
 
-    fallback = LLMCaseSummary(
+    llm_text = ""
+    ai_endpoint = _resolve_ai_endpoint(request, _config(request))
+    if ai_endpoint and db:
+        try:
+            host = _workspace_host(db)
+            headers = db._client.config.authenticate()
+            signal_block = "\n".join(f"- {s}" for s in (signals or []))
+            prompt = f"""You are a UKI Gas revenue protection analyst.
+Write a concise case summary (3-5 sentences) for account {account_id} using the provided risk indicators.
+
+Risk level: {risk_level}
+Composite score: {score:.2f}
+Consumption drop: {drop_pct:.1f}%
+Communication gaps (30d): {gaps}
+Signals:
+{signal_block if signal_block else "- Data from anomaly scoring model"}
+
+Include:
+1) why this case is suspicious,
+2) likely operational impact,
+3) a clear next action.
+Respond as plain text only."""
+            with httpx.Client(timeout=30) as http:
+                resp = http.post(
+                    f"{host}/serving-endpoints/{ai_endpoint}/invocations",
+                    json={
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 280,
+                        "usage_context": {
+                            "use_case": "robbie_case_summary",
+                            "account_id": account_id,
+                            "model_key": model_key,
+                        },
+                    },
+                    headers=headers,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    choices = data.get("choices", [])
+                    if choices:
+                        llm_text = (choices[0].get("message", {}).get("content", "") or "").strip()
+                else:
+                    logger.warning(f"Case summary endpoint returned HTTP {resp.status_code}: {resp.text[:200]}")
+        except Exception as e:
+            logger.warning(f"Case summary AI call failed: {type(e).__name__}: {e}")
+
+    final_text = llm_text or stored_llm_summary or f"Account {account_id} analysis pending full LLM integration."
+    cs_result = LLMCaseSummary(
         account_id=account_id,
         risk_level=risk_level,
-        key_signals=signals or [
-            "62% consumption drop over 30 days",
-            "8 communication gaps in 30 days",
-            "Cohort deviation 2.3 sigma above mean",
-        ],
-        recommended_action="Dispatch field engineer for meter inspection",
+        key_signals=signals or ["Data from anomaly scoring model"],
+        recommended_action="Dispatch field engineer for meter inspection" if risk_level == "HIGH" else "Monitor and re-score in next batch",
         priority="URGENT" if risk_level == "HIGH" else "STANDARD",
         estimated_loss_per_month_gbp=_est_monthly_loss(drop_pct, score) or 200.0,
-        raw_text=f"Account {account_id} analysis pending full LLM integration.",
+        raw_text=final_text,
     )
-    _cache_set(cache_key, fallback)
-    return fallback
+    _cache_set(cache_key, cs_result)
+    return cs_result
+
 
 
 # ---------------------------------------------------------------------------
@@ -3360,24 +3404,31 @@ _ENDPOINT_BUDGETS: dict[str, dict[str, float | int | str]] = {
     # and avoid very large token budget figures in the UI.
     "energy-theft-bedrock-gateway": {
         "display_name": "Bedrock Nova Lite",
-        "monthly_token_budget": 500,
+        "monthly_token_budget": 100_000,
         "monthly_usd_budget": 500.0,
     },
     "energy-theft-openai-gateway": {
         "display_name": "Foundation Model API (Claude/Sonnet)",
         "monthly_token_budget": 500,
-        "monthly_usd_budget": 500.0,
+        "monthly_usd_budget": 100.0,
     },
     "energy-theft-llama-gateway": {
         "display_name": "Foundation Model API (GPT-OSS/Llama)",
         "monthly_token_budget": 500,
-        "monthly_usd_budget": 500.0,
+        "monthly_usd_budget": 300.0,
     },
     "energy-theft-gemini-gateway": {
         "display_name": "Foundation Model API (Gemini route)",
         "monthly_token_budget": 500,
-        "monthly_usd_budget": 500.0,
+        "monthly_usd_budget": 200.0,
     },
+}
+_DEMO_BUDGET_PCT_FLOOR: dict[str, float] = {
+    # Keep budget cards story-aligned after monthly data refresh.
+    "energy-theft-bedrock-gateway": 10.0,
+    "energy-theft-openai-gateway": 15.0,
+    "energy-theft-llama-gateway": 65.0,
+    "energy-theft-gemini-gateway": 10.0,
 }
 _RL_ENDPOINT_PER_MIN = 30
 _RL_USER_PER_MIN = 10
@@ -3587,14 +3638,20 @@ async def get_finops_summary(request: Request):
         input_t = agg[ep]["input"]
         output_t = agg[ep]["output"]
         blocked = agg[ep]["blocked"]
-        used_tokens = input_t + output_t
-        used_cost = _row_cost(ep, input_t, output_t)
-        total_cost += used_cost
-        total_tokens += used_tokens
+        actual_used_tokens = input_t + output_t
+        actual_used_cost = _row_cost(ep, input_t, output_t)
         total_blocked += blocked
         budget_conf = _ENDPOINT_BUDGETS.get(ep, {})
         token_budget = int(budget_conf.get("monthly_token_budget", 1_000_000))
         usd_budget = float(budget_conf.get("monthly_usd_budget", 10.0))
+        target_pct = float(_DEMO_BUDGET_PCT_FLOOR.get(ep, 0.0))
+        target_used_tokens = int(round(token_budget * (target_pct / 100.0)))
+        target_used_cost = round(usd_budget * (target_pct / 100.0), 4)
+        # Use a floor so each month starts with consistent, story-friendly budget posture.
+        used_tokens = max(actual_used_tokens, target_used_tokens)
+        used_cost = max(actual_used_cost, target_used_cost)
+        total_cost += used_cost
+        total_tokens += used_tokens
         endpoint_budgets.append(
             EndpointBudgetStatus(
                 endpoint_name=ep,
