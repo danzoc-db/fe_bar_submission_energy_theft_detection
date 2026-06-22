@@ -3306,6 +3306,13 @@ def _live_external_lineage(db: SQLClient) -> ExternalLineageResponse | None:
             if n.name in static_displays:
                 n.display = static_displays[n.name]
 
+        # Build a deterministic lookup from shared static defs so we can recover
+        # source table names when the live API omits them (observed in some SDK/API
+        # responses where source.table is null but column relationships are present).
+        edge_lookup: dict[tuple[str, str, str], str] = {}
+        for e in shared.COLUMN_EDGES:
+            edge_lookup[(e.target_pbi, e.source_column, e.target_column)] = e.source_table
+
         # Lineage edges — query per target external object, UPSTREAM direction.
         from databricks.sdk.service import catalog as _cat
         edges: list[ExternalLineageEdge] = []
@@ -3328,12 +3335,15 @@ def _live_external_lineage(db: SQLClient) -> ExternalLineageResponse | None:
                     src_short = src_fqn.split(".")[-1] if src_fqn else ""
                     col_rels = getattr(rel, "columns", []) or []
                     for cr in col_rels:
+                        src_col = getattr(cr, "source", "") or ""
+                        tgt_col = getattr(cr, "target", "") or ""
+                        recovered_src = src_short or edge_lookup.get((em.name, src_col, tgt_col), "")
                         edges.append(
                             ExternalLineageEdge(
-                                source_table=src_short,
-                                source_column=getattr(cr, "source", "") or "",
+                                source_table=recovered_src,
+                                source_column=src_col,
                                 target_external=em.name,
-                                target_column=getattr(cr, "target", "") or "",
+                                target_column=tgt_col,
                             )
                         )
             except Exception as e:
@@ -3432,6 +3442,7 @@ _DEMO_BUDGET_PCT_FLOOR: dict[str, float] = {
 }
 _RL_ENDPOINT_PER_MIN = 30
 _RL_USER_PER_MIN = 10
+_GOVERNANCE_CACHE_TTL = 120  # seconds
 
 def _row_cost(endpoint_name: str, input_tokens: int, output_tokens: int) -> float:
     inp_rate, out_rate = _COST_PER_TOKEN.get(endpoint_name, _DEFAULT_COST)
@@ -3445,27 +3456,30 @@ def _row_cost(endpoint_name: str, input_tokens: int, output_tokens: int) -> floa
 )
 async def get_ai_gateway_audit(request: Request, limit: int = 100):
     """AI Gateway audit log — last N LLM calls from system.serving.endpoint_usage."""
+    cache_key = f"governance_audit:{limit}"
+    cached = _cache_get_ttl(cache_key, _GOVERNANCE_CACHE_TTL)
+    if cached is not None:
+        return cached
+
     db = _sql(request)
     if db:
         try:
             rows = db.execute(f"""
                 SELECT
                   eu.request_time,
-                  se.endpoint_name,
+                  eu.endpoint_name,
                   eu.requester,
                   eu.input_token_count,
                   eu.output_token_count,
                   (eu.input_token_count + eu.output_token_count) AS total_token_count,
                   eu.status_code
                 FROM system.serving.endpoint_usage eu
-                JOIN system.serving.served_entities se
-                  ON eu.served_entity_id = se.served_entity_id
-                WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+                WHERE eu.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
                 ORDER BY eu.request_time DESC
                 LIMIT {limit}
             """)
             if rows:
-                return [
+                result = [
                     AIGatewayAuditEntry(
                         request_timestamp=r["request_time"],
                         endpoint_name=r["endpoint_name"],
@@ -3483,6 +3497,8 @@ async def get_ai_gateway_audit(request: Request, limit: int = 100):
                     )
                     for r in rows
                 ]
+                _cache_set(cache_key, result)
+                return result
         except Exception as e:
             logger.error(f"Audit query failed: {e}")
     return []
@@ -3495,21 +3511,23 @@ async def get_ai_gateway_audit(request: Request, limit: int = 100):
 )
 async def get_audit_summary(request: Request):
     """Aggregate audit stats for the header card."""
+    cached = _cache_get_ttl("governance_audit_summary", _GOVERNANCE_CACHE_TTL)
+    if cached is not None:
+        return cached
+
     db = _sql(request)
     if db:
         try:
             rows = db.execute(f"""
                 SELECT
-                  se.endpoint_name,
+                  eu.endpoint_name,
                   COUNT(*) AS calls,
                   COALESCE(SUM(eu.input_token_count), 0) AS total_input,
                   COALESCE(SUM(eu.output_token_count), 0) AS total_output,
                   COUNT_IF(eu.status_code >= 400) AS errors
                 FROM system.serving.endpoint_usage eu
-                JOIN system.serving.served_entities se
-                  ON eu.served_entity_id = se.served_entity_id
-                WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
-                GROUP BY se.endpoint_name
+                WHERE eu.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+                GROUP BY eu.endpoint_name
             """)
             if rows:
                 total_calls = 0
@@ -3534,6 +3552,8 @@ async def get_audit_summary(request: Request):
                     avg_latency_ms=0.0,
                     error_count=total_errors,
                 )
+                _cache_set("governance_audit_summary", summary)
+                return summary
         except Exception as e:
             logger.error(f"Audit summary query failed: {e}")
     return AuditSummary(
@@ -3558,6 +3578,10 @@ async def get_finops_summary(request: Request):
     telemetry. Includes per-model budgets, blocked-request KPI, cost-per-
     investigation, and daily spike detection.
     """
+    cached = _cache_get_ttl("governance_finops_summary", _GOVERNANCE_CACHE_TTL)
+    if cached is not None:
+        return cached
+
     db = _sql(request)
     if not db:
         return FinOpsSummary(
@@ -3570,53 +3594,61 @@ async def get_finops_summary(request: Request):
             anomaly_alert=BudgetAnomalyAlert(active=False, message="No SQL warehouse configured."),
         )
 
-    try:
-        by_endpoint = db.execute(f"""
-            SELECT
-              se.endpoint_name,
-              COALESCE(SUM(eu.input_token_count), 0) AS input_tokens,
-              COALESCE(SUM(eu.output_token_count), 0) AS output_tokens,
-              COUNT(*) AS calls,
-              COUNT_IF(COALESCE(eu.status_code, 200) >= 400) AS blocked_or_error_calls
-            FROM system.serving.endpoint_usage eu
-            JOIN system.serving.served_entities se
-              ON eu.served_entity_id = se.served_entity_id
-            WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
-              AND DATE_TRUNC('month', eu.request_time) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
-            GROUP BY se.endpoint_name
-        """)
-    except Exception as e:
-        logger.error(f"FinOps endpoint aggregation failed: {e}")
-        by_endpoint = []
+    from concurrent.futures import ThreadPoolExecutor
 
-    try:
-        daily_rows = db.execute(f"""
-            SELECT
-              DATE(eu.request_time) AS day,
-              COALESCE(SUM(eu.input_token_count + eu.output_token_count), 0) AS total_tokens
-            FROM system.serving.endpoint_usage eu
-            JOIN system.serving.served_entities se
-              ON eu.served_entity_id = se.served_entity_id
-            WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
-              AND eu.request_time >= CURRENT_TIMESTAMP() - INTERVAL 14 DAYS
-            GROUP BY DATE(eu.request_time)
-            ORDER BY day
-        """)
-    except Exception as e:
-        logger.error(f"FinOps daily token query failed: {e}")
-        daily_rows = []
+    def _q_by_endpoint():
+        try:
+            return db.execute(f"""
+                SELECT
+                  eu.endpoint_name,
+                  COALESCE(SUM(eu.input_token_count), 0) AS input_tokens,
+                  COALESCE(SUM(eu.output_token_count), 0) AS output_tokens,
+                  COUNT(*) AS calls,
+                  COUNT_IF(COALESCE(eu.status_code, 200) >= 400) AS blocked_or_error_calls
+                FROM system.serving.endpoint_usage eu
+                WHERE eu.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+                  AND DATE_TRUNC('month', eu.request_time) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
+                GROUP BY eu.endpoint_name
+            """)
+        except Exception as e:
+            logger.error(f"FinOps endpoint aggregation failed: {e}")
+            return []
 
-    try:
-        # Align with dashboard storytelling: confirmed theft outcomes closed this month.
-        inv_rows = db.execute("""
-            SELECT COUNT(*) AS c
-            FROM investigation_cases
-            WHERE outcome = 'THEFT_CONFIRMED'
-              AND DATE_TRUNC('month', closed_timestamp) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
-        """)
-        investigations_mtd = int(inv_rows[0]["c"] or 0) if inv_rows else 0
-    except Exception:
-        investigations_mtd = 0
+    def _q_daily():
+        try:
+            return db.execute(f"""
+                SELECT
+                  DATE(eu.request_time) AS day,
+                  COALESCE(SUM(eu.input_token_count + eu.output_token_count), 0) AS total_tokens
+                FROM system.serving.endpoint_usage eu
+                WHERE eu.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+                  AND eu.request_time >= CURRENT_TIMESTAMP() - INTERVAL 14 DAYS
+                GROUP BY DATE(eu.request_time)
+                ORDER BY day
+            """)
+        except Exception as e:
+            logger.error(f"FinOps daily token query failed: {e}")
+            return []
+
+    def _q_investigations():
+        try:
+            inv_rows = db.execute("""
+                SELECT COUNT(*) AS c
+                FROM investigation_cases
+                WHERE outcome = 'THEFT_CONFIRMED'
+                  AND DATE_TRUNC('month', closed_timestamp) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
+            """)
+            return int(inv_rows[0]["c"] or 0) if inv_rows else 0
+        except Exception:
+            return 0
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        fut_ep = pool.submit(_q_by_endpoint)
+        fut_daily = pool.submit(_q_daily)
+        fut_inv = pool.submit(_q_investigations)
+        by_endpoint = fut_ep.result()
+        daily_rows = fut_daily.result()
+        investigations_mtd = fut_inv.result()
 
     agg: dict[str, dict[str, int]] = {
         ep: {"input": 0, "output": 0, "blocked": 0}
@@ -3688,7 +3720,7 @@ async def get_finops_summary(request: Request):
             )
 
     cpi = (total_cost / investigations_mtd) if investigations_mtd > 0 else 0.0
-    return FinOpsSummary(
+    summary = FinOpsSummary(
         total_cost_usd_mtd=round(total_cost, 4),
         total_tokens_mtd=total_tokens,
         total_blocked_requests_mtd=total_blocked,
@@ -3697,6 +3729,8 @@ async def get_finops_summary(request: Request):
         endpoint_budgets=endpoint_budgets,
         anomaly_alert=anomaly,
     )
+    _cache_set("governance_finops_summary", summary)
+    return summary
 
 
 @api.get(

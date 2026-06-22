@@ -72,14 +72,6 @@ import {
   getAuditSummaryKey,
   getFinOpsSummary,
   getFinOpsSummaryKey,
-  getDashboardKPIs,
-  getDashboardKPIsKey,
-  getInvestigationKPIs,
-  getInvestigationKPIsKey,
-  getDailyBriefing,
-  getDailyBriefingKey,
-  listFlaggedAccounts,
-  listFlaggedAccountsKey,
   type AIComponentRegistryItem,
   type AIGatewayAuditEntry,
   type ColumnMetadata,
@@ -116,11 +108,6 @@ function GovernancePending() {
 
 export const Route = createFileRoute("/_sidebar/governance")({
   loader: ({ context: { queryClient } }) => {
-    queryClient.ensureQueryData({ queryKey: getDashboardKPIsKey(), queryFn: getDashboardKPIs });
-    queryClient.ensureQueryData({ queryKey: getInvestigationKPIsKey(), queryFn: getInvestigationKPIs });
-    queryClient.ensureQueryData({ queryKey: getDailyBriefingKey(), queryFn: getDailyBriefing });
-    queryClient.ensureQueryData({ queryKey: listFlaggedAccountsKey(), queryFn: () => listFlaggedAccounts() });
-
     queryClient.ensureQueryData({ queryKey: getColumnMetadataKey(), queryFn: getColumnMetadata, staleTime: GOV_STALE });
     queryClient.ensureQueryData({ queryKey: getAIGatewayAuditKey(), queryFn: () => getAIGatewayAudit() });
     queryClient.ensureQueryData({ queryKey: getAuditSummaryKey(), queryFn: getAuditSummary });
