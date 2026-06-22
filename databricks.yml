@@ -344,6 +344,8 @@ resources:
         - environment_key: "default_env"
           spec:
             client: "2"
+            dependencies:
+              - "httpx"
 
 variables:
   sql_warehouse_id:

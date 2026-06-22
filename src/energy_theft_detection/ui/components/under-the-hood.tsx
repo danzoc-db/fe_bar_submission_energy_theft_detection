@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useDemoSettings } from "@/lib/demo-settings";
+import { competeConfig } from "@/lib/compete-config";
 
 const DB_ORANGE = "#FF3621";
 
@@ -170,17 +171,16 @@ const CATEGORY_COLORS: Record<string, string> = {
   Cost: "border-amber-500/60 text-amber-700 dark:text-amber-400",
   Speed: "border-blue-500/60 text-blue-700 dark:text-blue-400",
   Governance: "border-purple-500/60 text-purple-700 dark:text-purple-400",
+  DevEx: "border-blue-500/60 text-blue-700 dark:text-blue-400",
+  Architecture: "border-orange-500/60 text-orange-700 dark:text-orange-400",
 };
 
-export function FabricCallout({
-  children,
-  category,
-}: {
-  children: ReactNode;
-  category?: "Cost" | "Speed" | "Governance";
-}) {
+export function FabricCallout({ entryId }: { entryId: string }) {
   const { competeEnabled } = useDemoSettings();
   if (!competeEnabled) return null;
+
+  const entry = competeConfig[entryId];
+  if (!entry) return null;
 
   return (
     <div className="rounded-xl border border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30 p-4 space-y-2.5">
@@ -188,16 +188,21 @@ export function FabricCallout({
         <p className="text-base font-semibold uppercase tracking-wider text-red-700 dark:text-red-400">
           Why not Fabric?
         </p>
-        {category && (
-          <span
-            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-sm font-semibold uppercase tracking-wider ${CATEGORY_COLORS[category]}`}
-          >
-            {category}
-          </span>
-        )}
+        <span
+          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-sm font-semibold uppercase tracking-wider ${CATEGORY_COLORS[entry.category] ?? ""}`}
+        >
+          {entry.category}
+        </span>
       </div>
       <div className="text-lg leading-relaxed text-red-900 dark:text-red-200 space-y-1.5">
-        {children}
+        <p>{entry.messaging.callout}</p>
+        {entry.messaging.depth && entry.messaging.depth.length > 0 && (
+          <ul className="mt-2 space-y-1 list-disc list-inside text-base text-red-800 dark:text-red-300">
+            {entry.messaging.depth.map((bullet, i) => (
+              <li key={i}>{bullet}</li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

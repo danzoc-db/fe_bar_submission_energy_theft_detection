@@ -224,14 +224,7 @@ function UCHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Governance">
-        <p>
-          <strong>Fabric access control is split across 5 engines</strong> — workspace roles, OneLake Storage, SQL Warehouse, DAX row-level security, and KQL. Five permission models, limited automation, and no cross-lineage. Compliance blind spots are inevitable.
-        </p>
-        <p>
-          Purview has no column-level lineage from data to model to LLM. No single audit log. UC solves this out of the box.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="unified-governance" />
     </UnderTheHood>
   );
 }
@@ -722,7 +715,16 @@ function LineageDAG() {
   const externalQuery = useGetExternalLineage({
     query: { enabled: showExternal, staleTime: 10 * 60 * 1000 },
   } as Parameters<typeof useGetExternalLineage>[0]);
-  const externalLineage = externalQuery.data?.data;
+  // Generated hooks can return either a raw payload or an envelope { data }.
+  // Normalize both shapes so External BI nodes render consistently.
+  const externalLineage = ((externalQuery.data as { data?: unknown } | undefined)?.data ??
+    externalQuery.data) as
+    | {
+        nodes: ExternalLineageNode[];
+        edges: ExternalLineageEdge[];
+        source?: "live" | "fallback";
+      }
+    | undefined;
 
   const baseLineageNodes = useMemo(() => {
     if (!wsConfig) return [] as LineageNode[];

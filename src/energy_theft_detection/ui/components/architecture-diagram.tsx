@@ -58,19 +58,7 @@ function AppArchHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Cost">
-        <p>
-          <strong>Opaque, shared-capacity pricing</strong> — ETL, BI, Copilot,
-          AI, and RTI all compete for one Fabric CU pool. When it's exhausted,
-          workloads throttle or freeze. Moving between CU bands costs double and
-          requires careful capacity planning — overhead at the risk of downtime.
-        </p>
-        <p>
-          Replicating this app requires <strong>5+ services</strong> (App
-          Service, Power BI Embedded, AI Foundry, Fabric, Purview) — each with
-          its own billing, auth, and admin portal.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="platform-apps" />
     </UnderTheHood>
   );
 }

@@ -49,6 +49,7 @@ print(f"Dry run:  {DRY_RUN}")
 
 import os
 import sys
+import uuid
 
 
 def _find_scripts_setup_dir() -> str | None:
@@ -117,24 +118,38 @@ w = WorkspaceClient()
 def _has_create_external_metadata() -> tuple[bool, str]:
     """Return (allowed, reason). True if we can write external_metadata."""
     try:
-        # Attempt a no-op list — surfaces 403 if denied without mutating.
-        if hasattr(w, "external_metadata"):
-            _ = list(w.external_metadata.list_external_metadata(page_size=1))
-            return True, "external_metadata API reachable"
-        # Older SDK — try the REST endpoint directly.
+        # Definitive probe: attempt create+delete of a temporary object.
+        # This validates CREATE EXTERNAL METADATA for the *runtime identity*.
         host = w.config.host
         headers = w.config.authenticate()
         import httpx
-        resp = httpx.get(
-            f"{host}/api/2.0/lineage-tracking/external-metadata?page_size=1",
-            headers=headers,
-            timeout=10,
+
+        probe_name = f"perm_probe_{uuid.uuid4().hex[:8]}"
+        body = {
+            "name": probe_name,
+            "system_type": "POWER_BI",
+            "entity_type": "report",
+            "url": "https://example.com/probe",
+            "description": "temporary permission probe",
+            "columns": ["probe_col"],
+            "properties": dict(DEMO_PROPERTIES),
+        }
+        create_resp = httpx.post(
+            f"{host}/api/2.0/lineage-tracking/external-metadata",
+            headers={**headers, "Content-Type": "application/json"},
+            json=body,
+            timeout=20,
         )
-        if resp.status_code == 200:
-            return True, "REST external-metadata reachable"
-        if resp.status_code in (401, 403):
-            return False, f"REST returned {resp.status_code}: {resp.text[:200]}"
-        return False, f"REST returned {resp.status_code}: {resp.text[:200]}"
+        if create_resp.status_code not in (200, 201):
+            return False, f"CREATE probe returned {create_resp.status_code}: {create_resp.text[:200]}"
+
+        # Cleanup probe object.
+        _ = httpx.delete(
+            f"{host}/api/2.0/lineage-tracking/external-metadata/{probe_name}",
+            headers=headers,
+            timeout=20,
+        )
+        return True, "CREATE/DELETE probe succeeded"
     except Exception as e:
         return False, f"pre-flight exception: {e}"
 
@@ -155,7 +170,7 @@ if not _allowed:
     print("Until then the app's External Lineage toggle still works — the")
     print("backend will return the static dataclass list with source=\"fallback\".")
     print("=" * 70)
-    dbutils.notebook.exit("soft-skip: missing CREATE EXTERNAL METADATA grant")
+    dbutils.notebook.exit(f"soft-skip: missing CREATE EXTERNAL METADATA grant ({_reason})")
 
 # COMMAND ----------
 

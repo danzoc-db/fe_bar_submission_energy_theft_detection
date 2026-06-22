@@ -582,14 +582,7 @@ function AgentAtlasHood() {
         </HoodBullet>
       </HoodSection>
 
-      <FabricCallout category="Governance">
-        <p>
-          <strong>AI Foundry Connected Agents</strong> offer similar routing — but agents don&apos;t inherit data ACLs from a unified catalog. Governance requires separate Azure RBAC, AI Services keys, and Purview configuration with no single lineage from data → agent → LLM → output.
-        </p>
-        <p>
-          <strong>Agent Bricks differentiators:</strong> UC-native governance inherited by every brick, built-in price/quality model cascading behind one endpoint, MCP Catalog for org-wide tool discovery, and an MLflow feedback loop from production traces to model selection.
-        </p>
-      </FabricCallout>
+      <FabricCallout entryId="agent-governance" />
     </UnderTheHood>
   );
 }
