@@ -305,7 +305,7 @@ const KPI_META: KPIMeta[] = [
     label: "Exposure vs Divisional AOP",
     group: "exposure",
     icon: TrendingDown,
-    keylineColor: "bg-[#00539F]",
+    keylineColor: "bg-bg-orange",
     tooltip:
       "British Gas Home Energy divisional operating profit was £163m (British Gas Preliminary Results, Feb 2026). Theft exposure (~£323m) is nearly 2x the entire division's profit.",
     format: (n) => `${Math.round(n)}%`,
@@ -686,7 +686,7 @@ function InvestigationOutcomesCard() {
           <div className="flex gap-3 text-xs">
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#FF3621" }} /> Confirmed theft</span>
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-gray-300" /> Flagged cases</span>
-            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#00539F" }} /> Hit rate %</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#002F87" }} /> Hit rate %</span>
           </div>
         </div>
       </CardHeader>
@@ -717,8 +717,8 @@ function InvestigationOutcomesCard() {
                 x: months,
                 y: confirmRate,
                 yaxis: "y2",
-                line: { color: "#00539F", width: 2.5, shape: "spline" as const },
-                marker: { size: 5, color: "#00539F" },
+                line: { color: "#002F87", width: 2.5, shape: "spline" as const },
+                marker: { size: 5, color: "#002F87" },
                 hovertemplate: "<b>%{x}</b><br>Hit rate: %{y:.1f}%<extra></extra>",
               },
             ]}
@@ -739,8 +739,8 @@ function InvestigationOutcomesCard() {
                 zeroline: false,
               },
               yaxis2: {
-                title: { text: "Hit rate (%)", font: { size: 11, color: "#00539F" } },
-                tickfont: { size: 10, color: "#00539F" },
+                title: { text: "Hit rate (%)", font: { size: 11, color: "#002F87" } },
+                tickfont: { size: 10, color: "#002F87" },
                 overlaying: "y" as const,
                 side: "right" as const,
                 range: [0, 100],
@@ -753,7 +753,7 @@ function InvestigationOutcomesCard() {
                   type: "line" as const,
                   x0: ML_DEPLOY_LABEL, x1: ML_DEPLOY_LABEL,
                   y0: 0, y1: 1, yref: "paper" as const,
-                  line: { color: "#00539F", width: 2, dash: "dash" as const },
+                  line: { color: "#002F87", width: 2, dash: "dash" as const },
                 },
               ] : [],
               annotations: mlDeployIdx >= 0 ? [
@@ -766,8 +766,8 @@ function InvestigationOutcomesCard() {
                   arrowhead: 0,
                   ax: 40,
                   ay: -25,
-                  font: { size: 9, color: "#00539F", family: "inherit" },
-                  bordercolor: "#00539F",
+                  font: { size: 9, color: "#002F87", family: "inherit" },
+                  bordercolor: "#002F87",
                   borderwidth: 1,
                   borderpad: 3,
                   bgcolor: "rgba(255,255,255,0.9)",
@@ -878,8 +878,8 @@ const GENIE_FEATURES = [
     icon: BrainCircuit,
     title: "Knows the language of your business",
     desc: "Reads table schemas, column descriptions, and metric view definitions in Unity Catalog",
-    iconBg: "bg-[#00539F]/10",
-    iconColor: "text-[#00539F]",
+    iconBg: "bg-[#002F87]/10",
+    iconColor: "text-[#002F87]",
   },
   {
     icon: NotebookPen,
@@ -959,7 +959,7 @@ function GenieInline() {
   return (
     <Card className="overflow-hidden">
       {/* Header */}
-      <div className="bg-[#00539F] text-white px-6 py-4">
+      <div className="bg-[#002F87] text-white px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center">

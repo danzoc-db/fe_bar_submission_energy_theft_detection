@@ -4,12 +4,13 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * British Gas Brand Theme
+ * UKI Gas / UKI Energy Brand Theme
  *
- * Colors:
- *   British Gas Blue (primary):  #00539F
- *   British Gas Light Blue:      #0072CE
- *   British Gas Green (accent):  #8DC63F
+ * Colors from Nucleus Design System:
+ *   Navy (primary):  #002F87
+ *   Cyan (accent):   #0093F5
+ *   Lime (success):  #7FCC00
+ *   Orange:          #FF5900
  *   Red:             #D50032
  *   Slate:           #111518
  *   Light Gray:      #F3F5F7
@@ -22,38 +23,38 @@
   --card-foreground: oklch(0.20 0.04 260);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.20 0.04 260);
-  --primary: oklch(0.43 0.11 252);
+  --primary: oklch(0.28 0.10 260);
   --primary-foreground: oklch(0.98 0.002 240);
   --secondary: oklch(0.96 0.004 240);
-  --secondary-foreground: oklch(0.43 0.11 252);
+  --secondary-foreground: oklch(0.28 0.10 260);
   --muted: oklch(0.96 0.004 240);
   --muted-foreground: oklch(0.50 0.02 250);
-  --accent: oklch(0.52 0.14 252);
+  --accent: oklch(0.62 0.19 245);
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.50 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.91 0.004 240);
   --input: oklch(0.91 0.004 240);
-  --ring: oklch(0.52 0.14 252);
+  --ring: oklch(0.62 0.19 245);
 
-  /* Charts: British Gas branded palette */
-  --chart-1: oklch(0.43 0.11 252);
-  --chart-2: oklch(0.52 0.14 252);
-  --chart-3: oklch(0.72 0.18 130);
+  /* Charts: UKI Gas branded palette */
+  --chart-1: oklch(0.28 0.10 260);
+  --chart-2: oklch(0.62 0.19 245);
+  --chart-3: oklch(0.72 0.20 135);
   --chart-4: oklch(0.65 0.22 40);
   --chart-5: oklch(0.50 0.22 25);
 
   --radius: 0.5rem;
 
-  /* Sidebar: British Gas blue */
-  --sidebar: oklch(0.22 0.06 252);
+  /* Sidebar: BG Navy dark */
+  --sidebar: oklch(0.22 0.06 260);
   --sidebar-foreground: oklch(0.93 0.004 240);
-  --sidebar-primary: oklch(0.52 0.14 252);
+  --sidebar-primary: oklch(0.62 0.19 245);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.30 0.06 252);
+  --sidebar-accent: oklch(0.30 0.06 260);
   --sidebar-accent-foreground: oklch(0.93 0.004 240);
-  --sidebar-border: oklch(0.32 0.05 252);
-  --sidebar-ring: oklch(0.52 0.14 252);
+  --sidebar-border: oklch(0.32 0.05 260);
+  --sidebar-ring: oklch(0.62 0.19 245);
 }
 
 .dark {
@@ -63,19 +64,19 @@
   --card-foreground: oklch(0.93 0.004 240);
   --popover: oklch(0.19 0.025 260);
   --popover-foreground: oklch(0.93 0.004 240);
-  --primary: oklch(0.52 0.14 252);
-  --primary-foreground: oklch(0.15 0.02 252);
+  --primary: oklch(0.62 0.19 245);
+  --primary-foreground: oklch(0.15 0.02 260);
   --secondary: oklch(0.27 0.03 260);
   --secondary-foreground: oklch(0.93 0.004 240);
   --muted: oklch(0.27 0.03 260);
   --muted-foreground: oklch(0.65 0.015 250);
-  --accent: oklch(0.55 0.13 252);
+  --accent: oklch(0.65 0.17 245);
   --accent-foreground: oklch(0.15 0.02 260);
   --destructive: oklch(0.45 0.18 25);
   --destructive-foreground: oklch(0.65 0.22 25);
   --border: oklch(0.30 0.03 260);
   --input: oklch(0.30 0.03 260);
-  --ring: oklch(0.55 0.13 252);
+  --ring: oklch(0.65 0.17 245);
 
   /* Charts: dark mode navy-cyan palette */
   --chart-1: oklch(0.62 0.19 245);
@@ -133,11 +134,11 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* British Gas brand color utilities */
-  --color-bg-navy: oklch(0.43 0.11 252);
-  --color-bg-cyan: oklch(0.52 0.14 252);
+  /* UKI Gas brand color utilities */
+  --color-bg-navy: oklch(0.28 0.10 260);
+  --color-bg-cyan: oklch(0.62 0.19 245);
   --color-bg-lime: oklch(0.72 0.20 135);
-  --color-bg-orange: oklch(0.43 0.11 252);
+  --color-bg-orange: oklch(0.65 0.22 40);
   --color-bg-red: oklch(0.50 0.22 25);
   --color-bg-slate: oklch(0.18 0.01 260);
   --color-bg-blue: oklch(0.45 0.14 260);

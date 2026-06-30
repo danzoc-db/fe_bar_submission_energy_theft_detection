@@ -248,9 +248,9 @@ export function ArchitectureDiagram() {
               <div className="grid grid-cols-3 gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="rounded-lg border border-[#0072CE]/40 bg-[#0072CE]/[0.06] px-2 py-2.5 text-center cursor-help hover:border-[#0072CE]/60 transition-colors">
-                      <HardDrive className="h-5 w-5 text-[#0072CE] mx-auto mb-1" />
-                      <p className="text-xs font-bold text-[#0072CE]">Lakebase</p>
+                    <div className="rounded-lg border border-[#0093F5]/40 bg-[#0093F5]/[0.06] px-2 py-2.5 text-center cursor-help hover:border-[#0093F5]/60 transition-colors">
+                      <HardDrive className="h-5 w-5 text-[#0093F5] mx-auto mb-1" />
+                      <p className="text-xs font-bold text-[#0093F5]">Lakebase</p>
                       <p className="text-xs font-bold text-foreground">Case OLTP</p>
                       <p className="text-[10px] text-muted-foreground">low-latency R/W</p>
                     </div>

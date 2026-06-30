@@ -179,13 +179,13 @@ function Index() {
         {/* Hero */}
         <main className="flex flex-col items-center px-8 pt-6 pb-4">
           <div className="max-w-4xl space-y-6 text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#00539F]/40 bg-[#00539F]/10 px-4 py-1.5 text-xs font-medium text-[#00539F]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FF8A3D]/40 bg-[#FF8A3D]/10 px-4 py-1.5 text-xs font-medium text-[#FF8A3D]">
               Databricks x British Gas
             </span>
 
             <div className="space-y-3">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-[#00539F]">
-                <span className="text-[#00539F]">£1.4 billion</span> is stolen from
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-[#FF8A3D]">
+                <span className="text-[#FF8A3D]">£1.4 billion</span> is stolen from
                 UK energy suppliers every year.
               </h1>
               <p className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-muted-foreground">
@@ -221,7 +221,7 @@ function Index() {
                       {m.source}
                     </TooltipContent>
                   </Tooltip>
-                  <p className="text-3xl md:text-4xl font-bold text-[#00539F]">
+                  <p className="text-3xl md:text-4xl font-bold text-[#FF8A3D]">
                     {m.value}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">{m.label}</p>
@@ -250,7 +250,7 @@ function Index() {
                         {m.source}
                       </TooltipContent>
                     </Tooltip>
-                    <p className="text-xl font-bold text-[#0072CE]">{m.value}</p>
+                    <p className="text-xl font-bold text-[#FF9F5A]">{m.value}</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">{m.label}</p>
                   </div>
                 ))}
@@ -289,7 +289,7 @@ function Index() {
             <div className="space-y-3 pt-2">
               <p className="text-xl md:text-2xl font-medium max-w-3xl mx-auto leading-relaxed text-foreground text-center">
                 How might British Gas turn{" "}
-                <span className="text-[#00539F] font-bold">£323M</span> of loss exposure into
+                <span className="text-[#FF8A3D] font-bold">£323M</span> of loss exposure into
                 recovered revenue, faster, with Data Intelligence?
               </p>
             </div>
@@ -386,7 +386,7 @@ function Index() {
               {/* Robbie */}
               <div className="rounded-xl border bg-card p-6 flex flex-col">
                 <div className="flex items-center gap-4">
-                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-[#00539F] to-[#003d75] flex items-center justify-center text-4xl shrink-0">
+                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-4xl shrink-0">
                     🕵️
                   </div>
                   <div>
@@ -405,7 +405,7 @@ function Index() {
                     "Close 25+ cases/week",
                   ].map((g) => (
                     <span key={g} className="flex items-start gap-1.5 min-h-[1.75rem]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#00539F] shrink-0 mt-[0.4rem]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-orange-500 shrink-0 mt-[0.4rem]" />
                       {g}
                     </span>
                   ))}
@@ -418,7 +418,7 @@ function Index() {
 
                 <Button
                   variant="outline"
-                  className="w-full border-[#00539F]/40 text-[#00539F] hover:bg-[#00539F]/10 gap-2 mt-4"
+                  className="w-full border-orange-400 text-orange-500 hover:bg-orange-50 gap-2 mt-4"
                   asChild
                 >
                   <Link to="/investigation">
@@ -581,7 +581,7 @@ function Index() {
                       Investigation Triage & Dispatch Supervisor
                     </p>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#00539F]/10 px-2 py-0.5 text-[10px] font-medium text-[#00539F]">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2 py-0.5 text-[10px] font-medium text-orange-600">
                         Built for Robbie
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">

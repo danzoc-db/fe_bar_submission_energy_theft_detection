@@ -278,7 +278,7 @@ function MeetRobbieSlide() {
   return (
     <section className="space-y-8">
       <div className="flex items-center gap-4">
-        <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#00539F] to-[#003d75] flex items-center justify-center text-3xl shrink-0">
+        <div className="h-16 w-16 rounded-full bg-gradient-to-br from-bg-orange to-bg-red flex items-center justify-center text-3xl shrink-0">
           🕵️
         </div>
         <div>
@@ -303,7 +303,7 @@ function MeetRobbieSlide() {
                 "Close 25+ cases per week",
               ].map((g) => (
                 <span key={g} className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#00539F] shrink-0" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-bg-orange shrink-0" />
                   {g}
                 </span>
               ))}
@@ -322,7 +322,7 @@ function MeetRobbieSlide() {
         </Card>
       </div>
 
-      <Card className="bg-muted/30 border-[#00539F]/20">
+      <Card className="bg-muted/30 border-bg-orange/20">
         <CardContent className="pt-4">
           <p className="text-sm italic text-muted-foreground">
             &ldquo;Every day I delay investigating a flagged account is
@@ -332,7 +332,7 @@ function MeetRobbieSlide() {
       </Card>
 
       <div className="flex justify-center">
-        <Button variant="outline" className="gap-2 border-[#00539F]/40 text-[#00539F] hover:bg-[#00539F]/10" asChild>
+        <Button variant="outline" className="gap-2 border-bg-orange/40 text-bg-orange hover:bg-bg-orange/10" asChild>
           <Link to="/investigation">
             Open Robbie&rsquo;s Workbench <ArrowRight className="h-4 w-4" />
           </Link>

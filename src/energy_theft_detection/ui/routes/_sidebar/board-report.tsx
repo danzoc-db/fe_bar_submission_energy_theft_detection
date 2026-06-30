@@ -594,13 +594,13 @@ function handlePrintReport(report: BoardReport) {
 <title>${report.report_title}</title>
 <style>
   body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 800px; margin: 40px auto; color: #1a1a2e; line-height: 1.6; }
-  h1 { color: #0072CE; font-size: 22px; border-bottom: 2px solid #0072CE; padding-bottom: 8px; }
+  h1 { color: #0A84C8; font-size: 22px; border-bottom: 2px solid #0A84C8; padding-bottom: 8px; }
   h2 { color: #333; font-size: 16px; margin-top: 24px; text-transform: uppercase; letter-spacing: 0.05em; }
   .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
-  .summary { background: #f0f7ff; border-left: 3px solid #0072CE; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; }
+  .summary { background: #f0f7ff; border-left: 3px solid #0A84C8; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; }
   .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
   .kpi { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
-  .kpi-value { font-size: 20px; font-weight: bold; color: #0072CE; }
+  .kpi-value { font-size: 20px; font-weight: bold; color: #0A84C8; }
   .kpi-label { font-size: 12px; color: #666; }
   ol { padding-left: 20px; }
   li { margin-bottom: 6px; }

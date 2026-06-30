@@ -189,8 +189,8 @@ function AdvisorySection({
         )}
 
         {section.risk && (
-          <div className="rounded-lg border-l-4 border-[#00539F] bg-[#00539F]/5 p-3">
-            <p className="text-xs font-semibold uppercase text-[#00539F] mb-1">
+          <div className="rounded-lg border-l-4 border-bg-orange bg-bg-orange/5 p-3">
+            <p className="text-xs font-semibold uppercase text-bg-orange mb-1">
               The Risk with Alternative Approaches
             </p>
             <p className="text-sm leading-relaxed">{section.risk}</p>
@@ -248,8 +248,8 @@ function ArchitectureSummary() {
             </ul>
           </div>
 
-          <div className="rounded-lg border-2 border-[#00539F] p-4 space-y-3">
-            <h3 className="font-semibold text-[#00539F]">
+          <div className="rounded-lg border-2 border-bg-orange p-4 space-y-3">
+            <h3 className="font-semibold text-bg-orange">
               Fragmented Alternative
             </h3>
             <ul className="text-sm space-y-1 text-muted-foreground">
@@ -260,7 +260,7 @@ function ArchitectureSummary() {
               <li>→ Fabric SQL Endpoint (data queries)</li>
               <li>→ Microsoft Purview (governance and audit)</li>
               <li>→ Entra ID (per-service identity config)</li>
-              <li className="font-medium text-[#00539F]">
+              <li className="font-medium text-bg-orange">
                 = 7 services, 4+ admin portals, 5 permission models
               </li>
             </ul>
