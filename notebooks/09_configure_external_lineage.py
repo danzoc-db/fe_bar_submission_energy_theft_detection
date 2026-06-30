@@ -14,9 +14,12 @@
 # MAGIC never drift apart.
 # MAGIC
 # MAGIC ## Behaviour
-# MAGIC - **Idempotent.** Existing external_metadata objects with our marker
-# MAGIC   properties are DELETEd before being recreated, and existing lineage
-# MAGIC   relationships are likewise replaced. Re-running the notebook is safe.
+# MAGIC - **Non-destructive by default.** Existing `external_metadata` objects are
+# MAGIC   left in place when `CREATE EXTERNAL METADATA` is missing or when objects
+# MAGIC   already exist. The monthly e2e job must never wipe UC lineage because a
+# MAGIC   permission probe failed mid-run.
+# MAGIC - **Optional recreate.** Set widget `force_recreate=true` to DELETE→CREATE
+# MAGIC   our demo objects (only when the pre-flight probe passes).
 # MAGIC - **Soft-skip on missing privilege.** If `CREATE EXTERNAL METADATA` is
 # MAGIC   not held on the metastore, the notebook prints a clear remediation
 # MAGIC   message and exits 0 — so it doesn't break the e2e job in workspaces
@@ -31,14 +34,17 @@
 dbutils.widgets.text("catalog", "dz_demos")
 dbutils.widgets.text("schema", "energy_theft_protection")
 dbutils.widgets.dropdown("dry_run", "false", ["true", "false"])
+dbutils.widgets.dropdown("force_recreate", "false", ["true", "false"])
 
 CATALOG = dbutils.widgets.get("catalog")
 SCHEMA = dbutils.widgets.get("schema")
 DRY_RUN = dbutils.widgets.get("dry_run") == "true"
+FORCE_RECREATE = dbutils.widgets.get("force_recreate") == "true"
 
 print(f"Catalog:  {CATALOG}")
 print(f"Schema:   {SCHEMA}")
 print(f"Dry run:  {DRY_RUN}")
+print(f"Force recreate: {FORCE_RECREATE}")
 
 # COMMAND ----------
 
@@ -162,13 +168,16 @@ if not _allowed:
     print("SOFT SKIP — CREATE EXTERNAL METADATA on the metastore is not held.")
     print(f"Reason: {_reason}")
     print()
+    print("No UC external_metadata or external_lineage objects were modified.")
+    print("Any objects registered in a previous successful run are preserved.")
+    print()
     print("Remediation:")
     print("  1. Ask a metastore admin to grant your principal:")
     print("       GRANT CREATE EXTERNAL METADATA ON METASTORE TO `<sp-or-user>`;")
-    print("  2. Re-run this notebook.")
+    print("  2. Re-run this notebook (optionally with force_recreate=true).")
     print()
     print("Until then the app's External Lineage toggle still works — the")
-    print("backend will return the static dataclass list with source=\"fallback\".")
+    print("backend will return live UC data when readable, else source=\"fallback\".")
     print("=" * 70)
     dbutils.notebook.exit(f"soft-skip: missing CREATE EXTERNAL METADATA grant ({_reason})")
 
@@ -199,6 +208,71 @@ _host = w.config.host.rstrip("/")
 
 def _rest_headers() -> dict:
     return {**w.config.authenticate(), "Content-Type": "application/json"}
+
+
+def _get_external_metadata(name: str) -> dict | None:
+    """Return external_metadata payload if present, else None."""
+    if _USE_SDK_METADATA:
+        try:
+            obj = w.external_metadata.get_external_metadata(name=name)
+            return {
+                "name": getattr(obj, "name", name),
+                "properties": dict(getattr(obj, "properties", None) or {}),
+                "columns": list(getattr(obj, "columns", None) or []),
+            }
+        except Exception as e:
+            if "NOT_FOUND" in str(e).upper() or "404" in str(e):
+                return None
+            raise
+    resp = httpx.get(
+        f"{_host}/api/2.0/lineage-tracking/external-metadata/{name}",
+        headers=_rest_headers(),
+        timeout=30,
+    )
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        raise RuntimeError(f"GET failed {resp.status_code}: {resp.text[:200]}")
+    return resp.json()
+
+
+def _is_demo_metadata(meta: dict) -> bool:
+    props = meta.get("properties") or {}
+    return all(props.get(k) == v for k, v in DEMO_PROPERTIES.items())
+
+
+def _register_external_metadata(report: PBIReport) -> str:
+    """Create-or-preserve one external_metadata object. Never deletes unless forced.
+
+    Returns one of: created | preserved | recreated | skipped_foreign | dry_run
+    """
+    if DRY_RUN:
+        existing = _get_external_metadata(report.name)
+        if existing and _is_demo_metadata(existing) and not FORCE_RECREATE:
+            return "dry_run_preserve"
+        if FORCE_RECREATE and existing:
+            return "dry_run_recreate"
+        return "dry_run_create"
+
+    existing = _get_external_metadata(report.name)
+    if existing:
+        if not _is_demo_metadata(existing):
+            print(f"     ⚠ skipped — {report.name} exists but is not owned by this demo")
+            return "skipped_foreign"
+        if not FORCE_RECREATE:
+            print(f"     ✓ preserved existing ({len(existing.get('columns') or report.columns)} columns)")
+            return "preserved"
+        _delete_external_metadata(report.name)
+
+    try:
+        _create_external_metadata(report)
+    except Exception as e:
+        msg = str(e)
+        if "ALREADY_EXISTS" in msg.upper() or "409" in msg or "exists" in msg.lower():
+            print("     ✓ already exists (preserved)")
+            return "preserved"
+        raise
+    return "recreated" if existing else "created"
 
 
 def _delete_external_metadata(name: str) -> None:
@@ -333,23 +407,25 @@ def _create_lineage(edge: ColumnEdge, catalog: str, schema: str) -> None:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Register external_metadata (idempotent DELETE → CREATE)
+# MAGIC ## Register external_metadata (create-or-preserve)
 
 # COMMAND ----------
 
 print(f"\nRegistering {len(POWER_BI_REPORTS)} Power BI reports as UC external_metadata\n")
+print(f"Mode: {'force recreate (DELETE→CREATE)' if FORCE_RECREATE else 'preserve existing (no deletes)'}\n")
 
+metadata_stats: dict[str, int] = {}
+metadata_failures = 0
 for report in POWER_BI_REPORTS:
     print(f"  → {report.name}  ({report.display})")
-    if DRY_RUN:
-        print(f"     [dry-run] would DELETE+CREATE {report.name}")
-        continue
     try:
-        _delete_external_metadata(report.name)
-        _create_external_metadata(report)
-        print(f"     ✓ registered ({len(report.columns)} columns)")
+        outcome = _register_external_metadata(report)
+        metadata_stats[outcome] = metadata_stats.get(outcome, 0) + 1
+        if outcome.startswith("dry_run"):
+            print(f"     [dry-run] {outcome}")
     except Exception as e:
-        print(f"     ✗ FAILED: {e}")
+        metadata_failures += 1
+        print(f"     ✗ FAILED (existing object preserved): {e}")
 
 # COMMAND ----------
 
@@ -398,10 +474,17 @@ for edge in COLUMN_EDGES:
 print("=" * 70)
 print("External Lineage configuration summary")
 print("=" * 70)
-print(f"  Reports registered:        {len(POWER_BI_REPORTS)}")
+print(f"  Reports attempted:         {len(POWER_BI_REPORTS)}")
+print(f"  Report outcomes:           {metadata_stats or '(none — dry run only)'}")
+print(f"  Report registration fails: {metadata_failures}")
 print(f"  Lineage edges attempted:   {len(COLUMN_EDGES)}")
 print(f"  Lineage edges created/ok:  {created}")
 print(f"  Lineage edges failed:      {failed}")
+if metadata_failures or failed:
+    print()
+    print("  ⚠ Some writes failed — existing UC objects were not deleted.")
+    print("    The end-to-end job can continue; the app falls back to static")
+    print("    lineage definitions when live UC reads are unavailable.")
 print()
 print("  Verify in Catalog Explorer:")
 for r in POWER_BI_REPORTS:

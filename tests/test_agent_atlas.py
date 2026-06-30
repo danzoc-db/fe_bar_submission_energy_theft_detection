@@ -6,6 +6,63 @@ Bedrock, or Gemini connections are available.
 """
 
 
+class TestBoardReportJsonParsing:
+    """TC-A1b: LLM JSON fence stripping for board report fields."""
+
+    def test_parse_fenced_json_on_one_line(self):
+        from energy_theft_detection.backend.router import _parse_llm_json_object
+
+        raw = (
+            '```json { "executive_summary": "As of May, revenue recovered exceeded target.", '
+            '"recommendations": ["Increase investment"], '
+            '"kpi_highlights": [{"label": "Recovered", "value": "£10M", "trend": "up", "context": "May"}] } ```'
+        )
+        parsed = _parse_llm_json_object(raw)
+        assert parsed is not None
+        assert parsed["executive_summary"].startswith("As of May")
+        assert parsed["recommendations"] == ["Increase investment"]
+        assert parsed["kpi_highlights"][0]["value"] == "£10M"
+
+    def test_parse_multiline_fenced_json(self):
+        from energy_theft_detection.backend.router import _parse_llm_json_object
+
+        raw = """```json
+{"executive_summary": "CFO summary.", "recommendations": []}
+```"""
+        parsed = _parse_llm_json_object(raw)
+        assert parsed is not None
+        assert parsed["executive_summary"] == "CFO summary."
+
+    def test_apply_board_report_json_populates_fields(self):
+        from energy_theft_detection.backend.models import BoardReport
+        from energy_theft_detection.backend.router import _apply_board_report_json
+
+        report = BoardReport(
+            report_title="t",
+            period="p",
+            generated_at="g",
+            executive_summary="",
+            revenue_protection_overview="",
+            regional_analysis="",
+            model_performance_summary="",
+            recommendations=[],
+        )
+        _apply_board_report_json(
+            report,
+            {
+                "executive_summary": "Lead with £ impact.",
+                "revenue_protection_overview": "Pipeline healthy.",
+                "regional_analysis": "London leads.",
+                "model_performance_summary": "High precision.",
+                "recommendations": ["Act now"],
+                "kpi_highlights": [{"label": "HIGH", "value": "146", "trend": "up", "context": "flagged"}],
+            },
+        )
+        assert report.executive_summary == "Lead with £ impact."
+        assert report.recommendations == ["Act now"]
+        assert report.kpi_highlights[0].value == "146"
+
+
 class TestBoardReportGeneration:
     """TC-A1: Agent Atlas board report endpoint."""
 
