@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Suspense, useState, useRef, useLayoutEffect, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,6 +29,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ModelBadge } from "@/components/model-badge";
@@ -51,6 +53,7 @@ import {
   LayoutDashboard,
   TrendingUp,
   Gauge,
+  RefreshCw,
 } from "lucide-react";
 import {
   useGetPIIMatrixSuspense,
@@ -109,9 +112,22 @@ function GovernancePending() {
 export const Route = createFileRoute("/_sidebar/governance")({
   loader: ({ context: { queryClient } }) => {
     queryClient.ensureQueryData({ queryKey: getColumnMetadataKey(), queryFn: getColumnMetadata, staleTime: GOV_STALE });
-    queryClient.ensureQueryData({ queryKey: getAIGatewayAuditKey(), queryFn: () => getAIGatewayAudit() });
-    queryClient.ensureQueryData({ queryKey: getAuditSummaryKey(), queryFn: getAuditSummary });
-    queryClient.ensureQueryData({ queryKey: getFinOpsSummaryKey(), queryFn: getFinOpsSummary });
+    // Bust backend governance cache on tab entry so audit/finops recover after model switches.
+    queryClient.fetchQuery({
+      queryKey: getAIGatewayAuditKey(),
+      queryFn: () => getAIGatewayAudit({ refresh: true }),
+      staleTime: 0,
+    });
+    queryClient.fetchQuery({
+      queryKey: getAuditSummaryKey(),
+      queryFn: () => getAuditSummary({ refresh: true }),
+      staleTime: 0,
+    });
+    queryClient.fetchQuery({
+      queryKey: getFinOpsSummaryKey(),
+      queryFn: () => getFinOpsSummary({ refresh: true }),
+      staleTime: 0,
+    });
 
     return Promise.all([
       queryClient.ensureQueryData({ queryKey: getAIComponentsKey(), queryFn: getAIComponents, staleTime: GOV_STALE }),
@@ -1192,9 +1208,9 @@ function LineageDAG() {
 }
 
 const ENDPOINT_DISPLAY: Record<string, { label: string; color: string }> = {
-  "energy-theft-bedrock-gateway": { label: "Bedrock", color: "border-[#FF9900] text-[#FF9900] bg-[#FF9900]/5" },
+  "energy-theft-bedrock-gateway": { label: "Nova Lite", color: "border-[#FF9900] text-[#FF9900] bg-[#FF9900]/5" },
   "energy-theft-gemini-gateway": { label: "Gemini", color: "border-blue-500 text-blue-600 bg-blue-500/5" },
-  "energy-theft-openai-gateway": { label: "OpenAI", color: "border-emerald-500 text-emerald-600 bg-emerald-500/5" },
+  "energy-theft-openai-gateway": { label: "Claude", color: "border-emerald-500 text-emerald-600 bg-emerald-500/5" },
   "energy-theft-llama-gateway": { label: "Llama", color: "border-purple-500 text-purple-600 bg-purple-500/5" },
 };
 
@@ -1210,18 +1226,51 @@ function EndpointBadge({ name }: { name: string }) {
 const AUDIT_REFETCH_MS = 30_000;
 
 function AuditPanel() {
-  const { data: entries } = useGetAIGatewayAuditSuspense({
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const auditQuery = {
     ...selector(),
-    query: { ...selector().query, refetchInterval: AUDIT_REFETCH_MS },
-  } as Parameters<typeof useGetAIGatewayAuditSuspense>[0]);
-  const { data: summary } = useGetAuditSummarySuspense({
-    ...selector(),
-    query: { ...selector().query, refetchInterval: AUDIT_REFETCH_MS },
-  } as Parameters<typeof useGetAuditSummarySuspense>[0]);
-  const { data: finops } = useGetFinOpsSummarySuspense({
-    ...selector(),
-    query: { ...selector().query, refetchInterval: AUDIT_REFETCH_MS },
-  } as Parameters<typeof useGetFinOpsSummarySuspense>[0]);
+    query: {
+      ...selector().query,
+      refetchInterval: AUDIT_REFETCH_MS,
+      refetchOnMount: "always" as const,
+      staleTime: 0,
+    },
+  };
+  const { data: entries } = useGetAIGatewayAuditSuspense(
+    auditQuery as Parameters<typeof useGetAIGatewayAuditSuspense>[0],
+  );
+  const { data: summary } = useGetAuditSummarySuspense(
+    auditQuery as Parameters<typeof useGetAuditSummarySuspense>[0],
+  );
+  const { data: finops } = useGetFinOpsSummarySuspense(
+    auditQuery as Parameters<typeof useGetFinOpsSummarySuspense>[0],
+  );
+
+  const refreshAudit = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: getAIGatewayAuditKey(),
+          queryFn: () => getAIGatewayAudit({ refresh: true }),
+          staleTime: 0,
+        }),
+        queryClient.fetchQuery({
+          queryKey: getAuditSummaryKey(),
+          queryFn: () => getAuditSummary({ refresh: true }),
+          staleTime: 0,
+        }),
+        queryClient.fetchQuery({
+          queryKey: getFinOpsSummaryKey(),
+          queryFn: () => getFinOpsSummary({ refresh: true }),
+          staleTime: 0,
+        }),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [queryClient]);
 
   const fmtTokens = (n: number) =>
     n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n);
@@ -1261,13 +1310,26 @@ function AuditPanel() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <CardTitle>AI Gateway Audit Trail</CardTitle>
-            <ModelBadge showModel />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => void refreshAudit()}
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <ModelBadge showModel />
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">
             LLM calls from <code className="text-xs bg-muted px-1 py-0.5 rounded">system.serving.endpoint_usage</code> —
-            every call logged with caller, tokens, cost, and status
+            all four AI Gateway endpoints (Bedrock, Claude, Llama, Gemini); every call logged with caller, tokens, cost, and status
           </p>
         </CardHeader>
         <CardContent>

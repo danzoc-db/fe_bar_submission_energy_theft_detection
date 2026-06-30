@@ -156,8 +156,13 @@ GRANT CREATE EXTERNAL METADATA ON METASTORE TO `<account-admin-or-sp>`;
 ```
 
 If the privilege isn't held, `notebooks/09_configure_external_lineage.py`
-**soft-skips** (exits 0) and prints a remediation message. The backend
-endpoint then returns `source: "fallback"` and the UI keeps working.
+**soft-skips** (exits 0) without modifying any existing UC objects. The
+backend endpoint then returns `source: "fallback"` (or live UC reads when
+still readable) and the UI keeps working.
+
+By default the notebook **preserves** existing demo `external_metadata`
+objects (`force_recreate=false`). Only when an admin explicitly sets
+`force_recreate=true` and the CREATE probe passes will it DELETE→CREATE.
 
 ## The `.pbip` deliverables
 

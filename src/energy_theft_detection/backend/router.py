@@ -12,6 +12,7 @@ SQL_WAREHOUSE_ID is not configured.
 
 from __future__ import annotations
 
+import json as _json
 import time as _time
 from typing import Any
 
@@ -2422,6 +2423,59 @@ _MARKET_INTELLIGENCE_FALLBACK = (
 )
 
 
+def _parse_llm_json_object(raw: str) -> dict[str, Any] | None:
+    """Extract a JSON object from an LLM response (markdown fences, prose prefixes, etc.)."""
+    if not raw or not str(raw).strip():
+        return None
+
+    def _try_load(text: str) -> dict[str, Any] | None:
+        try:
+            parsed = _json.loads(text)
+        except (_json.JSONDecodeError, TypeError, ValueError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
+
+    cleaned = str(raw).strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.removeprefix("```json").removeprefix("```JSON").removeprefix("```").strip()
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
+
+    for candidate in (cleaned, str(raw).strip()):
+        loaded = _try_load(candidate)
+        if loaded:
+            return loaded
+        start = candidate.find("{")
+        end = candidate.rfind("}")
+        if start != -1 and end > start:
+            loaded = _try_load(candidate[start : end + 1])
+            if loaded:
+                return loaded
+    return None
+
+
+def _apply_board_report_json(report: BoardReport, data: dict[str, Any]) -> None:
+    """Populate board report fields from a parsed LLM JSON object."""
+    report.executive_summary = str(data.get("executive_summary", "") or "")
+    report.revenue_protection_overview = str(data.get("revenue_protection_overview", "") or "")
+    report.regional_analysis = str(data.get("regional_analysis", "") or "")
+    if data.get("market_intelligence"):
+        report.market_intelligence = str(data["market_intelligence"])
+    report.model_performance_summary = str(data.get("model_performance_summary", "") or "")
+    recs = data.get("recommendations", [])
+    report.recommendations = [str(r) for r in recs] if isinstance(recs, list) else []
+    report.kpi_highlights = [
+        BoardReportKPI(
+            label=str(kpi.get("label", "")),
+            value=str(kpi.get("value", "")),
+            trend=str(kpi.get("trend", "")),
+            context=str(kpi.get("context", "")),
+        )
+        for kpi in data.get("kpi_highlights", [])
+        if isinstance(kpi, dict)
+    ]
+
+
 @api.post(
     "/agent/atlas/board-report",
     response_model=BoardReport,
@@ -2537,53 +2591,47 @@ async def generate_board_report(request: Request):
                 )
                 trace.insert(0, supervisor_step)
 
-                report_data: dict = {}
-                for candidate in [final_text, raw_content]:
-                    try:
-                        cleaned = candidate.strip()
-                        if cleaned.startswith("```"):
-                            cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0]
-                        report_data = _json.loads(cleaned)
-                        if report_data:
-                            break
-                    except (_json.JSONDecodeError, TypeError, ValueError):
-                        continue
-
-                market_text = report_data.get("market_intelligence", "")
-                if not market_text:
-                    market_text = _MARKET_INTELLIGENCE_FALLBACK
-
-                exec_summary = report_data.get("executive_summary", "")
-                if not exec_summary:
-                    exec_summary = final_text[:500] if final_text else raw_content[:500]
-                if not exec_summary:
-                    exec_summary = f"Agent Atlas MAS routed through {agents_str} but returned no parseable content."
-
-                return BoardReport(
-                    report_title=f"Revenue Protection Board Report — {period}",
-                    period=period,
-                    generated_at=generated_at,
-                    executive_summary=exec_summary,
-                    revenue_protection_overview=report_data.get("revenue_protection_overview", ""),
-                    regional_analysis=report_data.get("regional_analysis", ""),
-                    market_intelligence=market_text,
-                    model_performance_summary=report_data.get("model_performance_summary", ""),
-                    recommendations=report_data.get("recommendations", []),
-                    kpi_highlights=[
-                        BoardReportKPI(
-                            label=str(kpi.get("label", "")),
-                            value=str(kpi.get("value", "")),
-                            trend=str(kpi.get("trend", "")),
-                            context=str(kpi.get("context", "")),
-                        )
-                        for kpi in report_data.get("kpi_highlights", [])
-                        if isinstance(kpi, dict)
-                    ],
-                    agent_trace=trace,
-                    genie_questions_asked=len([s for s in sub_agents_called if s == "kpi_collector"]),
-                    bedrock_tokens_used=0,
-                    gemini_tokens_used=0,
+                report_data = (
+                    _parse_llm_json_object(final_text)
+                    or _parse_llm_json_object(raw_content)
+                    or {}
                 )
+
+                if report_data:
+                    market_text = report_data.get("market_intelligence", "") or _MARKET_INTELLIGENCE_FALLBACK
+                    return BoardReport(
+                        report_title=f"Revenue Protection Board Report — {period}",
+                        period=period,
+                        generated_at=generated_at,
+                        executive_summary=str(report_data.get("executive_summary", "")),
+                        revenue_protection_overview=str(report_data.get("revenue_protection_overview", "")),
+                        regional_analysis=str(report_data.get("regional_analysis", "")),
+                        market_intelligence=market_text,
+                        model_performance_summary=str(report_data.get("model_performance_summary", "")),
+                        recommendations=[
+                            str(r) for r in report_data.get("recommendations", [])
+                            if r is not None
+                        ] if isinstance(report_data.get("recommendations"), list) else [],
+                        kpi_highlights=[
+                            BoardReportKPI(
+                                label=str(kpi.get("label", "")),
+                                value=str(kpi.get("value", "")),
+                                trend=str(kpi.get("trend", "")),
+                                context=str(kpi.get("context", "")),
+                            )
+                            for kpi in report_data.get("kpi_highlights", [])
+                            if isinstance(kpi, dict)
+                        ],
+                        agent_trace=trace,
+                        genie_questions_asked=len([s for s in sub_agents_called if s == "kpi_collector"]),
+                        bedrock_tokens_used=0,
+                        gemini_tokens_used=0,
+                    )
+
+                supervisor_step.answer = (
+                    "MAS completed but JSON parse failed — falling back to direct orchestration"
+                )
+                logger.warning("MAS returned unparseable JSON; falling back to direct orchestration")
 
             else:
                 supervisor_step.answer = f"MAS returned HTTP {resp.status_code} — falling back to direct orchestration"
@@ -2754,26 +2802,11 @@ Respond ONLY with the JSON object. No markdown, no code fences."""
                 choices = data.get("choices", [])
                 if choices:
                     bedrock_raw = choices[0].get("message", {}).get("content", "")
-                    try:
-                        parsed = _json.loads(bedrock_raw)
-                        report.executive_summary = parsed.get("executive_summary", "")
-                        report.revenue_protection_overview = parsed.get("revenue_protection_overview", "")
-                        report.regional_analysis = parsed.get("regional_analysis", "")
-                        report.model_performance_summary = parsed.get("model_performance_summary", "")
-                        report.recommendations = parsed.get("recommendations", [])
-                        report.kpi_highlights = [
-                            BoardReportKPI(
-                                label=str(kpi.get("label", "")),
-                                value=str(kpi.get("value", "")),
-                                trend=str(kpi.get("trend", "")),
-                                context=str(kpi.get("context", "")),
-                            )
-                            for kpi in parsed.get("kpi_highlights", [])
-                            if isinstance(kpi, dict)
-                        ]
-                    except (_json.JSONDecodeError, TypeError, ValueError) as parse_err:
-                        logger.warning(f"Bedrock JSON parse failed: {parse_err}")
-                        report.executive_summary = bedrock_raw
+                    parsed = _parse_llm_json_object(bedrock_raw)
+                    if parsed:
+                        _apply_board_report_json(report, parsed)
+                    else:
+                        logger.warning("Bedrock board report JSON parse failed; using SQL fallback narrative")
 
             bedrock_answer = report.executive_summary
             if not bedrock_answer:
@@ -3401,6 +3434,40 @@ _GATEWAY_ENDPOINTS = (
     "energy-theft-llama-gateway",
 )
 _GATEWAY_IN_CLAUSE = ", ".join(f"'{e}'" for e in _GATEWAY_ENDPOINTS)
+# endpoint_usage has served_entity_id only — resolve endpoint name via served_entities.
+_ENDPOINT_USAGE_FROM = """
+    FROM system.serving.endpoint_usage eu
+    JOIN system.serving.served_entities se
+      ON eu.served_entity_id = se.served_entity_id
+"""
+_ENDPOINT_USAGE_WHERE = f"WHERE se.endpoint_name IN ({_GATEWAY_IN_CLAUSE})"
+_GOVERNANCE_CACHE_KEYS = (
+    "governance_audit_summary",
+    "governance_finops_summary",
+)
+
+
+def _invalidate_governance_cache(limit: int | None = None) -> None:
+    """Drop cached governance audit/finops payloads (optionally one audit page size)."""
+    if limit is not None:
+        _cache.pop(f"governance_audit:{limit}", None)
+    else:
+        for key in list(_cache):
+            if key.startswith("governance_audit:"):
+                _cache.pop(key, None)
+    for key in _GOVERNANCE_CACHE_KEYS:
+        _cache.pop(key, None)
+
+
+def _cache_governance_audit(key: str, value: list) -> None:
+    """Cache audit rows only when non-empty so a bad query cannot stick for 2 minutes."""
+    if value:
+        _cache_set(key, value)
+
+
+def _cache_audit_summary(summary: AuditSummary) -> None:
+    if summary.total_calls > 0:
+        _cache_set("governance_audit_summary", summary)
 
 _COST_PER_TOKEN: dict[str, tuple[float, float]] = {
     "energy-theft-bedrock-gateway": (0.06 / 1e6, 0.24 / 1e6),      # Amazon Nova Lite (demo estimate)
@@ -3454,9 +3521,11 @@ def _row_cost(endpoint_name: str, input_tokens: int, output_tokens: int) -> floa
     response_model=list[AIGatewayAuditEntry],
     operation_id="getAIGatewayAudit",
 )
-async def get_ai_gateway_audit(request: Request, limit: int = 100):
+async def get_ai_gateway_audit(request: Request, limit: int = 100, refresh: bool = False):
     """AI Gateway audit log — last N LLM calls from system.serving.endpoint_usage."""
     cache_key = f"governance_audit:{limit}"
+    if refresh:
+        _invalidate_governance_cache(limit)
     cached = _cache_get_ttl(cache_key, _GOVERNANCE_CACHE_TTL)
     if cached is not None:
         return cached
@@ -3467,14 +3536,14 @@ async def get_ai_gateway_audit(request: Request, limit: int = 100):
             rows = db.execute(f"""
                 SELECT
                   eu.request_time,
-                  eu.endpoint_name,
+                  se.endpoint_name,
                   eu.requester,
                   eu.input_token_count,
                   eu.output_token_count,
                   (eu.input_token_count + eu.output_token_count) AS total_token_count,
                   eu.status_code
-                FROM system.serving.endpoint_usage eu
-                WHERE eu.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+                {_ENDPOINT_USAGE_FROM}
+                {_ENDPOINT_USAGE_WHERE}
                 ORDER BY eu.request_time DESC
                 LIMIT {limit}
             """)
@@ -3497,7 +3566,7 @@ async def get_ai_gateway_audit(request: Request, limit: int = 100):
                     )
                     for r in rows
                 ]
-                _cache_set(cache_key, result)
+                _cache_governance_audit(cache_key, result)
                 return result
         except Exception as e:
             logger.error(f"Audit query failed: {e}")
@@ -3509,8 +3578,10 @@ async def get_ai_gateway_audit(request: Request, limit: int = 100):
     response_model=AuditSummary,
     operation_id="getAuditSummary",
 )
-async def get_audit_summary(request: Request):
+async def get_audit_summary(request: Request, refresh: bool = False):
     """Aggregate audit stats for the header card."""
+    if refresh:
+        _invalidate_governance_cache()
     cached = _cache_get_ttl("governance_audit_summary", _GOVERNANCE_CACHE_TTL)
     if cached is not None:
         return cached
@@ -3520,14 +3591,14 @@ async def get_audit_summary(request: Request):
         try:
             rows = db.execute(f"""
                 SELECT
-                  eu.endpoint_name,
+                  se.endpoint_name,
                   COUNT(*) AS calls,
                   COALESCE(SUM(eu.input_token_count), 0) AS total_input,
                   COALESCE(SUM(eu.output_token_count), 0) AS total_output,
                   COUNT_IF(eu.status_code >= 400) AS errors
-                FROM system.serving.endpoint_usage eu
-                WHERE eu.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
-                GROUP BY eu.endpoint_name
+                {_ENDPOINT_USAGE_FROM}
+                {_ENDPOINT_USAGE_WHERE}
+                GROUP BY se.endpoint_name
             """)
             if rows:
                 total_calls = 0
@@ -3544,7 +3615,7 @@ async def get_audit_summary(request: Request):
                     total_output += out
                     total_errors += int(r["errors"] or 0)
                     total_cost += _row_cost(ep, inp, out)
-                return AuditSummary(
+                summary = AuditSummary(
                     total_calls=total_calls,
                     total_input_tokens=total_input,
                     total_output_tokens=total_output,
@@ -3552,7 +3623,7 @@ async def get_audit_summary(request: Request):
                     avg_latency_ms=0.0,
                     error_count=total_errors,
                 )
-                _cache_set("governance_audit_summary", summary)
+                _cache_audit_summary(summary)
                 return summary
         except Exception as e:
             logger.error(f"Audit summary query failed: {e}")
@@ -3571,13 +3642,15 @@ async def get_audit_summary(request: Request):
     response_model=FinOpsSummary,
     operation_id="getFinOpsSummary",
 )
-async def get_finops_summary(request: Request):
+async def get_finops_summary(request: Request, refresh: bool = False):
     """Cost/governance KPIs from AI Gateway usage + investigations.
 
     Backed by system.serving.endpoint_usage as source-of-truth for token/cost
     telemetry. Includes per-model budgets, blocked-request KPI, cost-per-
     investigation, and daily spike detection.
     """
+    if refresh:
+        _invalidate_governance_cache()
     cached = _cache_get_ttl("governance_finops_summary", _GOVERNANCE_CACHE_TTL)
     if cached is not None:
         return cached
@@ -3600,15 +3673,15 @@ async def get_finops_summary(request: Request):
         try:
             return db.execute(f"""
                 SELECT
-                  eu.endpoint_name,
+                  se.endpoint_name,
                   COALESCE(SUM(eu.input_token_count), 0) AS input_tokens,
                   COALESCE(SUM(eu.output_token_count), 0) AS output_tokens,
                   COUNT(*) AS calls,
                   COUNT_IF(COALESCE(eu.status_code, 200) >= 400) AS blocked_or_error_calls
-                FROM system.serving.endpoint_usage eu
-                WHERE eu.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+                {_ENDPOINT_USAGE_FROM}
+                {_ENDPOINT_USAGE_WHERE}
                   AND DATE_TRUNC('month', eu.request_time) = DATE_TRUNC('month', CURRENT_TIMESTAMP())
-                GROUP BY eu.endpoint_name
+                GROUP BY se.endpoint_name
             """)
         except Exception as e:
             logger.error(f"FinOps endpoint aggregation failed: {e}")
@@ -3620,8 +3693,8 @@ async def get_finops_summary(request: Request):
                 SELECT
                   DATE(eu.request_time) AS day,
                   COALESCE(SUM(eu.input_token_count + eu.output_token_count), 0) AS total_tokens
-                FROM system.serving.endpoint_usage eu
-                WHERE eu.endpoint_name IN ({_GATEWAY_IN_CLAUSE})
+                {_ENDPOINT_USAGE_FROM}
+                {_ENDPOINT_USAGE_WHERE}
                   AND eu.request_time >= CURRENT_TIMESTAMP() - INTERVAL 14 DAYS
                 GROUP BY DATE(eu.request_time)
                 ORDER BY day

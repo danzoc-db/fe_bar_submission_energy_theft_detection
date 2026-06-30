@@ -50,10 +50,6 @@ import {
   getPIIMatrixKey,
   getColumnMetadata,
   getColumnMetadataKey,
-  getAIGatewayAudit,
-  getAIGatewayAuditKey,
-  getAuditSummary,
-  getAuditSummaryKey,
 } from "@/lib/api";
 
 export const Route = createFileRoute("/")({
@@ -140,8 +136,7 @@ function usePrefetchAll() {
     qc.prefetchQuery({ queryKey: getAIComponentsKey(), queryFn: getAIComponents });
     qc.prefetchQuery({ queryKey: getPIIMatrixKey(), queryFn: getPIIMatrix });
     qc.prefetchQuery({ queryKey: getColumnMetadataKey(), queryFn: getColumnMetadata });
-    qc.prefetchQuery({ queryKey: getAIGatewayAuditKey(), queryFn: () => getAIGatewayAudit() });
-    qc.prefetchQuery({ queryKey: getAuditSummaryKey(), queryFn: getAuditSummary });
+    // Audit/finops are governance-tab only — prefetching here cached empty rows when SQL was broken.
   }, [qc]);
 }
 
