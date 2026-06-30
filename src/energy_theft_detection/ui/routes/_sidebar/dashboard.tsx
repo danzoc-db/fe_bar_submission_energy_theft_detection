@@ -291,7 +291,7 @@ const KPI_META: KPIMeta[] = [
       const recStr = recovered >= 1_000_000 ? `£${(recovered / 1_000_000).toFixed(1)}M` : `£${Math.round(recovered / 1_000)}K`;
       const net = kpis.annual_theft_exposure_gbp - recovered;
       const netStr = `£${Math.round(net / 1_000_000)}M`;
-      return `Derived from RECCo's £1.4bn UK theft estimate × UKI Gas's 23.1% domestic market share (Ofgem retail market indicators, Jan 2025). Label as estimate — directionally correct for executive conversation.\n\n↓ ${recStr} recovered YTD → ${netStr} net remaining exposure.`;
+      return `Derived from RECCo's £1.4bn UK theft estimate × British Gas's 23.1% domestic market share (Ofgem retail market indicators, Jan 2025). Label as estimate — directionally correct for executive conversation.\n\n↓ ${recStr} recovered YTD → ${netStr} net remaining exposure.`;
     },
     format: (n) => `£${Math.round(n / 1_000_000)}M`,
     subtitle: (kpis) => {
@@ -305,9 +305,9 @@ const KPI_META: KPIMeta[] = [
     label: "Exposure vs Divisional AOP",
     group: "exposure",
     icon: TrendingDown,
-    keylineColor: "bg-bg-orange",
+    keylineColor: "bg-[#00539F]",
     tooltip:
-      "UKI Gas Home Energy divisional operating profit was £163m (UKI Energy Preliminary Results, Feb 2026). Theft exposure (~£323m) is nearly 2x the entire division's profit.",
+      "British Gas Home Energy divisional operating profit was £163m (British Gas Preliminary Results, Feb 2026). Theft exposure (~£323m) is nearly 2x the entire division's profit.",
     format: (n) => `${Math.round(n)}%`,
     subtitle: "£323m exposure\nvs £163m operating profit",
   },
@@ -628,7 +628,7 @@ function RecoveryOpportunityCard() {
           <div className="rounded border border-dashed border-muted-foreground/20 bg-muted/30 px-3 py-2">
             <p className="text-[10px] text-muted-foreground">
               <span className="font-semibold text-foreground">Group context:</span>{" "}
-              £97M UKI Gas recovery target = 12% of UKI Energy Group adj. operating profit (£814M, FY2025)
+              £97M British Gas recovery target = 12% of British Gas Group adj. operating profit (£814M, FY2025)
             </p>
           </div>
         </div>
@@ -686,7 +686,7 @@ function InvestigationOutcomesCard() {
           <div className="flex gap-3 text-xs">
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#FF3621" }} /> Confirmed theft</span>
             <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-gray-300" /> Flagged cases</span>
-            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#002F87" }} /> Hit rate %</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#00539F" }} /> Hit rate %</span>
           </div>
         </div>
       </CardHeader>
@@ -717,8 +717,8 @@ function InvestigationOutcomesCard() {
                 x: months,
                 y: confirmRate,
                 yaxis: "y2",
-                line: { color: "#002F87", width: 2.5, shape: "spline" as const },
-                marker: { size: 5, color: "#002F87" },
+                line: { color: "#00539F", width: 2.5, shape: "spline" as const },
+                marker: { size: 5, color: "#00539F" },
                 hovertemplate: "<b>%{x}</b><br>Hit rate: %{y:.1f}%<extra></extra>",
               },
             ]}
@@ -739,8 +739,8 @@ function InvestigationOutcomesCard() {
                 zeroline: false,
               },
               yaxis2: {
-                title: { text: "Hit rate (%)", font: { size: 11, color: "#002F87" } },
-                tickfont: { size: 10, color: "#002F87" },
+                title: { text: "Hit rate (%)", font: { size: 11, color: "#00539F" } },
+                tickfont: { size: 10, color: "#00539F" },
                 overlaying: "y" as const,
                 side: "right" as const,
                 range: [0, 100],
@@ -753,7 +753,7 @@ function InvestigationOutcomesCard() {
                   type: "line" as const,
                   x0: ML_DEPLOY_LABEL, x1: ML_DEPLOY_LABEL,
                   y0: 0, y1: 1, yref: "paper" as const,
-                  line: { color: "#002F87", width: 2, dash: "dash" as const },
+                  line: { color: "#00539F", width: 2, dash: "dash" as const },
                 },
               ] : [],
               annotations: mlDeployIdx >= 0 ? [
@@ -766,8 +766,8 @@ function InvestigationOutcomesCard() {
                   arrowhead: 0,
                   ax: 40,
                   ay: -25,
-                  font: { size: 9, color: "#002F87", family: "inherit" },
-                  bordercolor: "#002F87",
+                  font: { size: 9, color: "#00539F", family: "inherit" },
+                  bordercolor: "#00539F",
                   borderwidth: 1,
                   borderpad: 3,
                   bgcolor: "rgba(255,255,255,0.9)",
@@ -878,8 +878,8 @@ const GENIE_FEATURES = [
     icon: BrainCircuit,
     title: "Knows the language of your business",
     desc: "Reads table schemas, column descriptions, and metric view definitions in Unity Catalog",
-    iconBg: "bg-[#002F87]/10",
-    iconColor: "text-[#002F87]",
+    iconBg: "bg-[#00539F]/10",
+    iconColor: "text-[#00539F]",
   },
   {
     icon: NotebookPen,
@@ -959,7 +959,7 @@ function GenieInline() {
   return (
     <Card className="overflow-hidden">
       {/* Header */}
-      <div className="bg-[#002F87] text-white px-6 py-4">
+      <div className="bg-[#00539F] text-white px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center">

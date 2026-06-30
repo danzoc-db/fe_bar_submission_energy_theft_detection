@@ -30,13 +30,13 @@ const SECTIONS = [
     title:
       "Executive Decision Speed — Why Governed NL Queries Matter",
     problem:
-      "Susie presents to the UKI Gas Home Energy CFO quarterly on theft exposure and recovery. When the CFO asks 'Are we on track to hit the £97m recovery target?', Susie needs the answer in 30 seconds, not two days. If the answer is wrong — if the KPI formula has drifted — the financial narrative to the board is unreliable.",
+      "Susie presents to the British Gas Home Energy CFO quarterly on theft exposure and recovery. When the CFO asks 'Are we on track to hit the £97m recovery target?', Susie needs the answer in 30 seconds, not two days. If the answer is wrong — if the KPI formula has drifted — the financial narrative to the board is unreliable.",
     requirement:
       "A natural language interface that queries live operational data directly, with KPI definitions governed centrally so the formula cannot diverge between reports.",
     solution:
       "Susie's Genie Space queries Delta tables directly. The Theft Detection Precision Rate is defined in a UC Metric View — a governed formula that cannot be overridden by the query engine. This is anti-hallucination through governance: the platform guarantees consistent answers regardless of who asks.",
     risk:
-      "Traditional NL-over-data approaches typically require a pre-built semantic model. When the underlying schema changes, the semantic model breaks silently. The dashboard still loads, but the answers are wrong, and no one is alerted. At the scale of UKI Gas's financial reporting, a silently wrong KPI creates audit risk.",
+      "Traditional NL-over-data approaches typically require a pre-built semantic model. When the underlying schema changes, the semantic model breaks silently. The dashboard still loads, but the answers are wrong, and no one is alerted. At the scale of British Gas's financial reporting, a silently wrong KPI creates audit risk.",
     depth: [
       "Power BI Copilot requires a pre-built DAX semantic model — schema changes break it silently with no automated alert",
       "No in-dashboard conversational capability in Fabric — users must context-switch to a separate Copilot interface",
@@ -47,7 +47,7 @@ const SECTIONS = [
     title:
       "Regulatory Audit Trail — Why AI Governance Is Not Optional",
     problem:
-      "Under Ofgem licence conditions and the new Energy Theft Unit (ETU, REC R0233, June 2025), UKI Gas must evidence how it detects and investigates theft. This includes demonstrating that AI-assisted decisions are auditable, that PII is handled per the Data Access and Privacy Framework, and that there is a clear chain of evidence from data ingestion through model scoring to investigation outcome.",
+      "Under Ofgem licence conditions and the new Energy Theft Unit (ETU, REC R0233, June 2025), British Gas must evidence how it detects and investigates theft. This includes demonstrating that AI-assisted decisions are auditable, that PII is handled per the Data Access and Privacy Framework, and that there is a clear chain of evidence from data ingestion through model scoring to investigation outcome.",
     requirement:
       "A single audit log covering every AI component: ML scoring runs, LLM calls (with token counts, latency, and guardrail outcomes), and NL query interactions. Column-level lineage from raw data through model input to investigation output.",
     solution:
@@ -81,7 +81,7 @@ const SECTIONS = [
     title:
       "Cost Governance — Why Consumption Pricing Protects the Business Case",
     problem:
-      "UKI Gas processes ~360 million smart meter events per day. The detection pipeline runs daily batch scoring, the executive dashboard is queried intermittently, and the investigation workbench sees concentrated usage during business hours. Demand is inherently spiky. A platform that charges for reserved capacity regardless of utilisation erodes the ROI of the detection programme itself.",
+      "British Gas processes ~360 million smart meter events per day. The detection pipeline runs daily batch scoring, the executive dashboard is queried intermittently, and the investigation workbench sees concentrated usage during business hours. Demand is inherently spiky. A platform that charges for reserved capacity regardless of utilisation erodes the ROI of the detection programme itself.",
     requirement:
       "Every compute layer — data querying, ML scoring, LLM inference, NL queries — must scale independently and bill only for actual usage.",
     solution:
@@ -97,7 +97,7 @@ const SECTIONS = [
   {
     title: "Architecture Summary",
     problem:
-      "The question is not which platform has more features. The question is: how quickly can UKI Gas get a governed, auditable theft detection programme into the hands of its investigators — and what is the cost of delay?",
+      "The question is not which platform has more features. The question is: how quickly can British Gas get a governed, auditable theft detection programme into the hands of its investigators — and what is the cost of delay?",
     requirement: "",
     solution: "",
     risk: "",
@@ -113,7 +113,7 @@ function WhyDatabricksPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Why Databricks</h1>
           <p className="text-muted-foreground">
-            Advisory platform context — framed around the UKI Gas energy
+            Advisory platform context — framed around the British Gas energy
             theft detection use case
           </p>
         </div>
@@ -125,7 +125,7 @@ function WhyDatabricksPage() {
       <Card className="border-accent/30 bg-accent/5">
         <CardContent className="pt-6">
           <p className="text-sm leading-relaxed">
-            UKI Gas's estimated theft exposure (~£323m) exceeds its entire
+            British Gas's estimated theft exposure (~£323m) exceeds its entire
             Home Energy divisional operating profit (£163m) by nearly 2×. Every
             week of delay in deploying an effective detection platform costs
             approximately £6.2m in unrecovered revenue. The platform choice is
@@ -189,8 +189,8 @@ function AdvisorySection({
         )}
 
         {section.risk && (
-          <div className="rounded-lg border-l-4 border-bg-orange bg-bg-orange/5 p-3">
-            <p className="text-xs font-semibold uppercase text-bg-orange mb-1">
+          <div className="rounded-lg border-l-4 border-[#00539F] bg-[#00539F]/5 p-3">
+            <p className="text-xs font-semibold uppercase text-[#00539F] mb-1">
               The Risk with Alternative Approaches
             </p>
             <p className="text-sm leading-relaxed">{section.risk}</p>
@@ -248,8 +248,8 @@ function ArchitectureSummary() {
             </ul>
           </div>
 
-          <div className="rounded-lg border-2 border-bg-orange p-4 space-y-3">
-            <h3 className="font-semibold text-bg-orange">
+          <div className="rounded-lg border-2 border-[#00539F] p-4 space-y-3">
+            <h3 className="font-semibold text-[#00539F]">
               Fragmented Alternative
             </h3>
             <ul className="text-sm space-y-1 text-muted-foreground">
@@ -260,7 +260,7 @@ function ArchitectureSummary() {
               <li>→ Fabric SQL Endpoint (data queries)</li>
               <li>→ Microsoft Purview (governance and audit)</li>
               <li>→ Entra ID (per-service identity config)</li>
-              <li className="font-medium text-bg-orange">
+              <li className="font-medium text-[#00539F]">
                 = 7 services, 4+ admin portals, 5 permission models
               </li>
             </ul>
@@ -269,7 +269,7 @@ function ArchitectureSummary() {
 
         <p className="mt-6 text-sm text-center text-muted-foreground italic">
           The question is not which platform has more features. The question is:
-          how quickly can UKI Gas get a governed, auditable theft detection
+          how quickly can British Gas get a governed, auditable theft detection
           programme into the hands of its investigators — and what is the cost
           of delay?
         </p>

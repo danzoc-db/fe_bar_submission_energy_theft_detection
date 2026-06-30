@@ -861,17 +861,17 @@ function AccountDetailContent({ accountId }: { accountId: string }) {
       <title>Dispatch ${dispatch.case_reference}</title>
       <style>
         body{font-family:system-ui,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#1a1a1a;font-size:14px}
-        h1{font-size:18px;border-bottom:2px solid #0A84C8;padding-bottom:8px}
-        h2{font-size:14px;color:#0A84C8;margin-top:24px;margin-bottom:8px}
+        h1{font-size:18px;border-bottom:2px solid #0072CE;padding-bottom:8px}
+        h2{font-size:14px;color:#0072CE;margin-top:24px;margin-bottom:8px}
         .meta{display:flex;gap:24px;font-size:13px;color:#666;margin-bottom:16px}
         .priority{background:#dc2626;color:#fff;padding:2px 10px;border-radius:4px;font-weight:600;font-size:12px}
-        .narrative{background:#f0f9ff;border-left:3px solid #0A84C8;padding:12px 16px;margin:16px 0;font-style:italic}
+        .narrative{background:#f0f9ff;border-left:3px solid #0072CE;padding:12px 16px;margin:16px 0;font-style:italic}
         ul{padding-left:20px} li{margin-bottom:4px}
         .safety{background:#fef2f2;border-left:3px solid #dc2626;padding:12px 16px;margin:16px 0}
         .footer{margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#999}
       </style>
     </head><body>
-      <h1>UKI Gas — Field Investigation Dispatch</h1>
+      <h1>British Gas — Field Investigation Dispatch</h1>
       <div class="meta">
         <span><strong>Case:</strong> ${dispatch.case_reference}</span>
         <span class="priority">${dispatch.priority}</span>

@@ -10,8 +10,8 @@ export function Logo({ to = "/", className = "", showText = true }: LogoProps) {
   const content = (
     <div className={`flex items-center gap-3 ${className}`}>
       <img
-        src="/bg-icon.svg"
-        alt="UKI Gas"
+        src="/british-gas-logo.svg"
+        alt="British Gas"
         className="h-10 w-auto"
       />
       {showText && (

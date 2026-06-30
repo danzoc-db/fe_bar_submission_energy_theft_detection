@@ -640,8 +640,8 @@ const LINEAGE_EDGES: LineageEdge[] = [
 
 const NODE_BORDER_COLOR: Record<NodeKind, string> = {
   source: "border-l-accent",
-  ml: "border-l-[#002F87]",
-  scored: "border-l-orange-500",
+  ml: "border-l-[#00539F]",
+  scored: "border-l-[#0072CE]",
   llm: "border-l-[#FF9900]",
   outcome: "border-l-emerald-500",
   external_bi: "border-l-[#F2C811]",
@@ -649,8 +649,8 @@ const NODE_BORDER_COLOR: Record<NodeKind, string> = {
 
 const NODE_HEADER_BADGE: Record<NodeKind, { label: string; cls: string }> = {
   source: { label: "Source", cls: "bg-accent/10 text-accent border-accent/30" },
-  ml: { label: "ML Model", cls: "bg-[#002F87]/10 text-[#002F87] border-[#002F87]/30 dark:text-blue-300" },
-  scored: { label: "Scored", cls: "bg-orange-500/10 text-orange-600 border-orange-500/30" },
+  ml: { label: "ML Model", cls: "bg-[#00539F]/10 text-[#00539F] border-[#00539F]/30 dark:text-blue-300" },
+  scored: { label: "Scored", cls: "bg-[#0072CE]/10 text-[#0072CE] border-[#0072CE]/30" },
   llm: { label: "LLM", cls: "bg-[#FF9900]/10 text-[#FF9900] border-[#FF9900]/30" },
   outcome: { label: "Output", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" },
   external_bi: { label: "Power BI", cls: "bg-[#F2C811]/10 text-[#A38000] border-[#F2C811]/40 dark:text-[#F2C811]" },
