@@ -589,10 +589,6 @@ targets:
               serving_endpoint:
                 name: "energy-theft-llama-gateway"
                 permission: "CAN_QUERY"
-            - name: "mas_endpoint"
-              serving_endpoint:
-                name: "${var.mas_endpoint}"
-                permission: "CAN_QUERY"
             - name: "genie-space"
               genie_space:
                 name: "Revenue Protection Executive Intelligence"

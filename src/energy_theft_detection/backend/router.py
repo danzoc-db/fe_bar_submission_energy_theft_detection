@@ -1015,8 +1015,8 @@ async def get_investigation_kpis(request: Request):
     operation_id="getDailyBriefing",
 )
 async def get_daily_briefing(request: Request):
-    """AI-generated daily focus summary for Robbie via Bedrock."""
-    model_key = request.headers.get("x-model-key", "bedrock")
+    """AI-generated daily focus summary for Robbie via FMAPI gateway."""
+    model_key = request.headers.get("x-model-key", "openai")
     cache_key = f"daily_briefing:{model_key}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -1416,7 +1416,7 @@ async def get_case_summary(request: Request, account_id: str):
     Optimised: both anomaly_scores and investigation_cases are queried in
     parallel via ThreadPool to halve the latency.
     """
-    model_key = request.headers.get("x-model-key", "bedrock")
+    model_key = request.headers.get("x-model-key", "openai")
     cache_key = f"case_summary:{account_id}:{model_key}"
     cached = _cache_get(cache_key)
     if cached is not None:
