@@ -86,9 +86,9 @@ _MODEL_KEY_ENDPOINTS = {
 
 def _resolve_ai_endpoint(request: Request, config: AppConfig | None) -> str:
     """Read X-Model-Key header and return the matching AI Gateway endpoint name."""
-    model_key = request.headers.get("x-model-key", "bedrock")
-    attr = _MODEL_KEY_ENDPOINTS.get(model_key, "ai_gateway_endpoint")
-    return getattr(config, attr, "energy-theft-bedrock-gateway") if config else ""
+    model_key = request.headers.get("x-model-key", "openai")
+    attr = _MODEL_KEY_ENDPOINTS.get(model_key, "openai_gateway_endpoint")
+    return getattr(config, attr, "energy-theft-openai-gateway") if config else ""
 
 
 # ---------------------------------------------------------------------------

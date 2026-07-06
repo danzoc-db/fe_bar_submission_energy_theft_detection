@@ -103,6 +103,86 @@ databricks bundle run energy-theft-detection-app -t dev
 1. Run `sql/01_create_tables.sql` to create the Unity Catalog tables
 2. Run `notebooks/01_generate_synthetic_data.py` as a notebook on a cluster to populate 100K synthetic accounts
 
+---
+
+## Deployment: zoccali-fevm-aws (AWS FEVM — catalog dev target)
+
+Private development workspace used for dbdemos catalog iteration.
+Once stable, the demo will migrate to E2 Demo West with area lead approval.
+
+**Workspace:** `fevm-zoccali-fevm-aws.cloud.databricks.com`  
+**Catalog / Schema:** `zoccali_fevm.energy_theft_protection`  
+**SQL Warehouse:** `85c1b174d196486d` (5X-Large serverless)  
+**Genie Space:** `01f16db6c03419a3b953033d66b5855f`  
+**App URL:** https://energy-theft-detection-7474643973020026.aws.databricksapps.com  
+**dbdemos Catalog ID:** *(TBD — update after submission)*  
+**Maintainer:** Daniel Zoccali (`daniel.zoccali@databricks.com`)
+
+### Deploy commands
+
+```bash
+# 1. Build frontend + patch app.yml + verify permissions
+BUN_CONFIG_NO_VERIFY=1 uv run apx build
+
+# 2. Deploy bundle (endpoints, job, pipeline, app)
+uv run databricks bundle deploy -t zoccali-fevm-aws
+
+# 3. Deploy app source code
+databricks apps deploy energy-theft-detection --profile zoccali-fevm-aws \
+  --source-code-path "/Workspace/Users/daniel.zoccali@databricks.com/.bundle/energy-theft-detection/zoccali-fevm-aws/files/.build"
+```
+
+### Variables
+
+| Variable | Value |
+|----------|-------|
+| `catalog` | `zoccali_fevm` |
+| `sql_warehouse_id` | `85c1b174d196486d` |
+| `genie_space_id` | `01f16db6c03419a3b953033d66b5855f` |
+| `mas_endpoint` | *(empty — set after running 08_configure_agent_atlas.py)* |
+| `fmapi_secret_scope` | `energy-theft-fmapi` |
+
+### Post-deploy validation
+
+```bash
+# Full deployment health check (includes FMAPI endpoints + external lineage)
+python3 scripts/validate_deployment.py \
+  --profile zoccali-fevm-aws \
+  --target zoccali-fevm-aws \
+  --app-url https://energy-theft-detection-7474643973020026.aws.databricksapps.com \
+  --token <YOUR_PAT>
+```
+
+### Smoke test checklist
+
+1. `GET /api/health` — SQL connected, catalog `zoccali_fevm`
+2. `/dashboard` — KPI tiles load, Genie panel responds
+3. `/investigation` — case list loads, LLM summary calls `energy-theft-openai-gateway`
+4. `/governance` — audit trail populated, external lineage shows 4 Power BI reports
+5. `/board-report` — Agent Atlas trace (MAS or graceful fallback)
+6. `/presentation` — "Build an App Like This" page loads
+7. `/why-databricks` — compete messaging renders (if enabled)
+
+### Cross-workspace reconciliation
+
+After redeploying, compare the new app against the baseline to verify Power BI lineage parity:
+
+```bash
+# Snapshot the current (before) state
+python3 scripts/reconcile_workspaces.py \
+  --snapshot https://energy-theft-detection-7474643973020026.aws.databricksapps.com \
+  --token <YOUR_PAT> \
+  --out /tmp/before.json
+
+# After redeploying, compare
+python3 scripts/reconcile_workspaces.py \
+  --compare /tmp/before.json \
+  --after https://energy-theft-detection-7474643973020026.aws.databricksapps.com \
+  --token <YOUR_PAT>
+```
+
+A clean reconciliation shows 0 differences and `source=live` for external lineage.
+
 ## Architecture
 
 - **Backend:** FastAPI (Python) — stateless, reads from Delta tables via SQL Warehouse Statement Execution API
@@ -110,7 +190,7 @@ databricks bundle run energy-theft-detection-app -t dev
 - **Data:** Unity Catalog (`dz_demos.energy_theft_protection`)
 - **ML:** Isolation Forest + LSTM ensemble (pre-computed scores in Delta)
 - **NL:** Genie Conversation API (executive queries over Metric Views)
-- **LLM:** Bedrock via AI Gateway (investigation case summaries)
+- **LLM:** FMAPI (openai-gateway → `databricks-claude-sonnet-4`) via AI Gateway (investigation case summaries); Bedrock gateway also deployed but not the default
 - **Deploy:** Databricks Apps via DABs (Databricks Asset Bundles)
 
 ## Personas
