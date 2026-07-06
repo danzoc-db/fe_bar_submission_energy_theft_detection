@@ -1,25 +1,55 @@
 import { Link } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
 
 interface LogoProps {
   to?: string;
   className?: string;
   showText?: boolean;
+  /** Sidebar uses a stacked layout so the wordmark and title fit in 16rem. */
+  variant?: "default" | "sidebar";
 }
 
-export function Logo({ to = "/", className = "", showText = true }: LogoProps) {
+export function Logo({
+  to = "/",
+  className = "",
+  showText = true,
+  variant = "default",
+}: LogoProps) {
+  const isSidebar = variant === "sidebar";
+
   const content = (
-    <div className={`flex items-center gap-3 ${className}`}>
+    <div
+      className={cn(
+        "min-w-0",
+        isSidebar ? "flex w-full flex-col gap-2" : "flex items-center gap-3",
+        className,
+      )}
+    >
       <img
         src="/bg-icon.svg"
         alt="UKI Gas"
-        className="h-10 w-auto"
+        className={cn(
+          "w-auto shrink-0",
+          isSidebar ? "h-8 max-w-full object-contain object-left" : "h-10",
+        )}
       />
       {showText && (
-        <div className="flex flex-col leading-tight">
-          <span className="font-bold text-base tracking-tight">
+        <div className={cn("flex min-w-0 flex-col leading-tight", isSidebar && "w-full")}>
+          <span
+            className={cn(
+              "font-bold tracking-tight",
+              isSidebar ? "text-sm leading-snug" : "text-base",
+            )}
+          >
             Revenue Protection
           </span>
-          <span className="text-xs text-sidebar-foreground/60">
+          <span
+            className={cn(
+              isSidebar
+                ? "text-[11px] leading-snug text-sidebar-foreground/60"
+                : "text-xs text-muted-foreground/60",
+            )}
+          >
             Energy Theft Detection
           </span>
         </div>
@@ -29,7 +59,7 @@ export function Logo({ to = "/", className = "", showText = true }: LogoProps) {
 
   if (to) {
     return (
-      <Link to={to} className="hover:opacity-80 transition-opacity">
+      <Link to={to} className="block min-w-0 hover:opacity-80 transition-opacity">
         {content}
       </Link>
     );
