@@ -34,7 +34,7 @@ class AppConfig(BaseSettings):
         validation_alias="SQL_WAREHOUSE_ID",
     )
     ai_gateway_endpoint: str = Field(
-        default="energy-theft-bedrock-gateway",
+        default="energy-theft-openai-gateway",
         validation_alias="AI_GATEWAY_ENDPOINT",
     )
     gemini_gateway_endpoint: str = Field(

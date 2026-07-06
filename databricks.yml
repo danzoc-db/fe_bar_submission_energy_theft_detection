@@ -566,4 +566,31 @@ targets:
       # Empty by default; 08_configure_agent_atlas.py creates MAS and prints endpoint name.
       mas_endpoint: ""
     resources:
-      apps: {}
+      apps:
+        energy-theft-detection-app:
+          resources:
+            - name: "warehouse"
+              sql_warehouse:
+                id: "${var.sql_warehouse_id}"
+                permission: "CAN_USE"
+            - name: "serving_endpoint"
+              serving_endpoint:
+                name: "energy-theft-bedrock-gateway"
+                permission: "CAN_QUERY"
+            - name: "gemini_endpoint"
+              serving_endpoint:
+                name: "energy-theft-gemini-gateway"
+                permission: "CAN_QUERY"
+            - name: "openai_endpoint"
+              serving_endpoint:
+                name: "energy-theft-openai-gateway"
+                permission: "CAN_QUERY"
+            - name: "llama_endpoint"
+              serving_endpoint:
+                name: "energy-theft-llama-gateway"
+                permission: "CAN_QUERY"
+            - name: "genie-space"
+              genie_space:
+                name: "Revenue Protection Executive Intelligence"
+                space_id: "${var.genie_space_id}"
+                permission: "CAN_RUN"

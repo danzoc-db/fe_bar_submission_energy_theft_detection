@@ -23,11 +23,14 @@ from databricks.sdk import WorkspaceClient
 APP_NAME = "energy-theft-detection"
 BEDROCK_ENDPOINT = "energy-theft-bedrock-gateway"
 GEMINI_ENDPOINT = "energy-theft-gemini-gateway"
+OPENAI_ENDPOINT = "energy-theft-openai-gateway"
+LLAMA_ENDPOINT = "energy-theft-llama-gateway"
 
 BUNDLE_TARGETS = {
     "dev": {"catalog": "dz_demos", "profile": "DEFAULT"},
     "azsu": {"catalog": "azsu_centrica_demo", "profile": "azsu-centrica-demo"},
     "azure-field-demo": {"catalog": "dz_demos", "profile": "azure-field-demo"},
+    "zoccali-fevm-aws": {"catalog": "zoccali_fevm", "profile": "zoccali-fevm-aws"},
 }
 
 
@@ -392,7 +395,50 @@ def check_system_tables(w: WorkspaceClient, warehouse_id: str) -> CheckResult:
         return CheckResult("System tables (audit trail)", Status.FAIL, f"Error: {err[:200]}")
 
 
-def run_validation(profile: str, target: str, app_url: str | None = None) -> ValidationReport:
+def check_external_lineage(app_url: str, token: str | None = None) -> CheckResult:
+    """Hit /api/governance/external-lineage and verify Power BI nodes and edges are present."""
+    try:
+        import httpx
+
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        url = app_url.rstrip("/") + "/api/governance/external-lineage"
+        with httpx.Client(timeout=20, follow_redirects=True) as http:
+            resp = http.get(url, headers=headers)
+        if resp.status_code == 401:
+            return CheckResult(
+                "External lineage (Power BI)",
+                Status.WARN,
+                "HTTP 401 — pass --token <PAT> to authenticate; skipping lineage check",
+            )
+        if resp.status_code != 200:
+            return CheckResult("External lineage (Power BI)", Status.FAIL, f"HTTP {resp.status_code}")
+        data = resp.json()
+        nodes = data.get("nodes", [])
+        edges = data.get("edges", [])
+        source = data.get("source", "unknown")
+        pbi_nodes = [n for n in nodes if n.get("system_type") == "POWER_BI"]
+        if len(pbi_nodes) < 4:
+            return CheckResult(
+                "External lineage (Power BI)",
+                Status.FAIL,
+                f"Expected 4 Power BI report nodes, got {len(pbi_nodes)} (source: {source})",
+            )
+        if len(edges) < 20:
+            return CheckResult(
+                "External lineage (Power BI)",
+                Status.WARN,
+                f"Only {len(edges)} column edges (expected ~28, source: {source})",
+            )
+        status = Status.PASS if source == "live" else Status.WARN
+        msg = f"{len(pbi_nodes)} PBI reports, {len(edges)} column edges, source={source}"
+        if source != "live":
+            msg += " — source is 'fallback' (UC lineage not live yet; run 09_configure_external_lineage)"
+        return CheckResult("External lineage (Power BI)", status, msg)
+    except Exception as e:
+        return CheckResult("External lineage (Power BI)", Status.SKIP, f"Could not reach app: {str(e)[:150]}")
+
+
+def run_validation(profile: str, target: str, app_url: str | None = None, token: str | None = None) -> ValidationReport:
     report = ValidationReport(target=target)
 
     target_config = BUNDLE_TARGETS.get(target, {})
@@ -429,12 +475,26 @@ def run_validation(profile: str, target: str, app_url: str | None = None) -> Val
 
     report.results.append(check_sql_warehouse(w, warehouse_id))
     report.results.append(check_schema_tables(w, warehouse_id, catalog, schema))
+    report.results.append(check_serving_endpoint(w, OPENAI_ENDPOINT, "OpenAI/FMAPI"))
+    report.results.append(check_serving_endpoint(w, LLAMA_ENDPOINT, "Llama/FMAPI"))
     report.results.append(check_serving_endpoint(w, BEDROCK_ENDPOINT, "Bedrock"))
     report.results.append(check_serving_endpoint(w, GEMINI_ENDPOINT, "Gemini"))
+    report.results.append(check_secret_scope(w, "energy-theft-fmapi", "FMAPI"))
     report.results.append(check_secret_scope(w, "energy-theft-bedrock", "Bedrock"))
     report.results.append(check_secret_scope(w, "energy-theft-gemini", "Gemini"))
     report.results.append(check_system_tables(w, warehouse_id))
+
+    resolved_url = (app_url or "").strip().rstrip("/") or None
+    if not resolved_url:
+        try:
+            app = w.apps.get(APP_NAME)
+            resolved_url = getattr(app, "url", None)
+        except Exception:
+            pass
+
     report.results.append(check_app_health_endpoint(w, app_url))
+    if resolved_url:
+        report.results.append(check_external_lineage(resolved_url, token))
 
     return report
 
@@ -444,12 +504,13 @@ def main():
     parser.add_argument("--profile", default=None, help="Databricks CLI profile")
     parser.add_argument("--target", default="dev", choices=list(BUNDLE_TARGETS.keys()), help="Bundle target")
     parser.add_argument("--app-url", default=None, help="Deployed app URL (optional, for health check)")
+    parser.add_argument("--token", default=None, help="Databricks PAT for authenticated app endpoint checks")
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 
     profile = args.profile or BUNDLE_TARGETS.get(args.target, {}).get("profile")
 
-    report = run_validation(profile, args.target, args.app_url)
+    report = run_validation(profile, args.target, args.app_url, args.token)
 
     if args.json:
         out = {
