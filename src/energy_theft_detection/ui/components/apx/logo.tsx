@@ -26,11 +26,11 @@ export function Logo({
       )}
     >
       <img
-        src="/british-gas-logo.svg"
-        alt="British Gas"
+        src="/bg-icon.svg"
+        alt="UKI Gas"
         className={cn(
           "w-auto shrink-0",
-          isSidebar ? "h-7 max-w-full object-contain object-left" : "h-10",
+          isSidebar ? "h-8 max-w-full object-contain object-left" : "h-10",
         )}
       />
       {showText && (

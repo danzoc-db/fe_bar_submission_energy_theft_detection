@@ -871,7 +871,7 @@ function AccountDetailContent({ accountId }: { accountId: string }) {
         .footer{margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#999}
       </style>
     </head><body>
-      <h1>British Gas — Field Investigation Dispatch</h1>
+      <h1>UKI Gas — Field Investigation Dispatch</h1>
       <div class="meta">
         <span><strong>Case:</strong> ${dispatch.case_reference}</span>
         <span class="priority">${dispatch.priority}</span>

@@ -1085,7 +1085,7 @@ async def get_daily_briefing(request: Request):
             headers = db._client.config.authenticate()
             sector_str = "; ".join(f"{s['postcode_sector']}: {s['cnt']} HIGH cases" for s in top_sectors) if top_sectors else "no geographic clusters detected"
 
-            prompt = f"""You are Robbie Henderson's AI assistant at British Gas Revenue Protection. Produce a morning briefing as a JSON object with two fields:
+            prompt = f"""You are Robbie Henderson's AI assistant at UKI Gas Revenue Protection. Produce a morning briefing as a JSON object with two fields:
 
 1. "summary": A 1-2 sentence overview of today's workload using the actual numbers below.
 2. "actions": An array of 3-5 short, specific action items Robbie should complete today. Each action should be one sentence, start with a verb, and reference actual numbers or postcode sectors.
@@ -1477,7 +1477,7 @@ async def get_case_summary(request: Request, account_id: str):
             host = _workspace_host(db)
             headers = db._client.config.authenticate()
             signal_block = "\n".join(f"- {s}" for s in (signals or []))
-            prompt = f"""You are a British Gas revenue protection analyst.
+            prompt = f"""You are a UKI Gas revenue protection analyst.
 Write a concise case summary (3-5 sentences) for account {account_id} using the provided risk indicators.
 
 Risk level: {risk_level}
@@ -1626,7 +1626,7 @@ async def generate_dispatch_report(request: Request, account_id: str):
         try:
             host = _workspace_host(db)
             headers = db._client.config.authenticate()
-            prompt = f"""You are a senior revenue protection analyst at British Gas writing a dispatch briefing for a field engineer. The engineer needs to arrive fully prepared — they have not seen this account before.
+            prompt = f"""You are a senior revenue protection analyst at UKI Gas writing a dispatch briefing for a field engineer. The engineer needs to arrive fully prepared — they have not seen this account before.
 
 Write a briefing that covers ALL of the following, using the exact numbers provided:
 
@@ -2291,7 +2291,7 @@ async def _atlas_market_intelligence(
     kpi_summary = "\n".join(f"- {k}: {v}" for k, v in kpi_data.items()) if kpi_data else "No internal KPIs available yet."
 
     prompt = f"""You are composing an analyst-style market and regulatory intelligence briefing \
-for a British Gas Revenue Protection board report. Your task is to SYNTHESISE the verified \
+for a UKI Gas Revenue Protection board report. Your task is to SYNTHESISE the verified \
 source material below into flowing prose — do NOT invent statistics or cite sources not listed here.
 
 === VERIFIED SOURCE MATERIAL ===
@@ -2346,9 +2346,9 @@ step-change in enforcement and supplier incentives.
 3. INTERNATIONAL BENCHMARK — Cite Enel's ML deployment as proof that the approach works at scale, \
 with specific recovery improvement figures.
 4. ACADEMIC ML VALIDATION — Reference the depth of peer-reviewed research (Zheng et al. 2018, \
-recent IEEE ensemble studies) to validate the ML techniques British Gas is adopting.
+recent IEEE ensemble studies) to validate the ML techniques UKI Gas is adopting.
 5. SMART METER OPPORTUNITY — Connect the 39M installed smart meters to the detection opportunity, \
-noting regional variation and forward-looking implications for British Gas's analytics capability.
+noting regional variation and forward-looking implications for UKI Gas's analytics capability.
 
 Where the internal performance data is available, weave in a comparison to the industry benchmarks.
 
@@ -2417,7 +2417,7 @@ _MARKET_INTELLIGENCE_FALLBACK = (
     "detection of non-technical losses, and recent IEEE surveys (2024–25) report ensemble "
     "methods achieving ROC-AUC of 0.88 on real smart meter data. With 39 million smart "
     "meters now installed across GB and 35 million operating in full smart mode "
-    "(DESNZ, Q1 2025), British Gas has an unprecedented data foundation for ML-driven "
+    "(DESNZ, Q1 2025), UKI Gas has an unprecedented data foundation for ML-driven "
     "revenue protection — particularly in high-penetration regions like the North East (75%) "
     "where detection models can operate at maximum efficacy."
 )
@@ -2513,7 +2513,7 @@ async def generate_board_report(request: Request):
             headers = db._client.config.authenticate()
 
             mas_prompt = (
-                "Generate a Revenue Protection board report for British Gas. "
+                "Generate a Revenue Protection board report for UKI Gas. "
                 "First collect KPI data (total HIGH-risk accounts, top postcode sectors, "
                 "precision rate, cases closed this month, revenue recovered). "
                 "Then gather market and regulatory intelligence about UK energy theft. "
@@ -2756,7 +2756,7 @@ async def generate_board_report(request: Request):
             host = _workspace_host(db)
             headers = db._client.config.authenticate()
 
-            prompt = f"""You are Agent Atlas, an AI assistant that generates monthly Revenue Protection board reports for Susie Thornton, Head of Revenue Protection at British Gas.
+            prompt = f"""You are Agent Atlas, an AI assistant that generates monthly Revenue Protection board reports for Susie Thornton, Head of Revenue Protection at UKI Gas.
 
 Using the data below, produce a board report as a JSON object with these fields:
 
@@ -2777,7 +2777,7 @@ Market intelligence (from Gemini — cite where relevant):
 {market_intel_text}
 
 Additional context:
-- Annual theft exposure: £323M (RECCo estimate × British Gas market share)
+- Annual theft exposure: £323M (RECCo estimate × UKI Gas market share)
 - Recovery target: £97M/year
 - Models: Isolation Forest (tabular anomaly), LSTM Autoencoder (temporal patterns), composite scoring
 - The platform runs on Databricks with Unity Catalog governance
@@ -2851,7 +2851,7 @@ Respond ONLY with the JSON object. No markdown, no code fences."""
 
         report.executive_summary = (
             f"Revenue Protection currently tracks {high} HIGH-risk and {medium} MEDIUM-risk "
-            f"accounts against a £323M annual theft exposure (RECCo estimate × British Gas market share). "
+            f"accounts against a £323M annual theft exposure (RECCo estimate × UKI Gas market share). "
             f"{closed} cases closed this month with {confirmed} confirmed thefts."
         )
         if recovered and recovered != "N/A":
@@ -2917,7 +2917,7 @@ _PII_MATRIX_DEFAULTS = [
     PIIFieldAccess(table_name="anomaly_scores", field_name="account_id", pii_tag="PII", regulatory_basis="Links scored risk to domestic customer"),
     PIIFieldAccess(table_name="anomaly_scores", field_name="postcode_sector", pii_tag="PII", regulatory_basis="Identifies area of premises"),
     PIIFieldAccess(table_name="investigation_cases", field_name="account_id", pii_tag="PII", regulatory_basis="Links investigation to customer"),
-    PIIFieldAccess(table_name="investigation_cases", field_name="investigator_id", pii_tag="PII (staff)", regulatory_basis="Identifies British Gas employee"),
+    PIIFieldAccess(table_name="investigation_cases", field_name="investigator_id", pii_tag="PII (staff)", regulatory_basis="Identifies UKI Gas employee"),
     PIIFieldAccess(table_name="investigation_cases", field_name="llm_summary", pii_tag="PII (derived)", regulatory_basis="LLM output may contain account-linked PII from prompt context"),
 ]
 
@@ -3011,7 +3011,7 @@ _COLUMN_METADATA_DEFAULTS = [
     ColumnMetadata(table_name="investigation_cases", column_name="case_id", comment="Unique investigation case reference", pii_tag=None, regulatory_basis=None),
     ColumnMetadata(table_name="investigation_cases", column_name="account_id", comment="Links investigation to customer account", pii_tag="PII", regulatory_basis="Links investigation to customer"),
     ColumnMetadata(table_name="investigation_cases", column_name="opened_timestamp", comment="Timestamp when the investigation was opened", pii_tag=None, regulatory_basis=None),
-    ColumnMetadata(table_name="investigation_cases", column_name="investigator_id", comment="Assigned investigator employee ID", pii_tag="PII (staff)", regulatory_basis="Identifies British Gas employee"),
+    ColumnMetadata(table_name="investigation_cases", column_name="investigator_id", comment="Assigned investigator employee ID", pii_tag="PII (staff)", regulatory_basis="Identifies UKI Gas employee"),
     ColumnMetadata(table_name="investigation_cases", column_name="llm_summary", comment="LLM-generated case summary — may contain account-linked PII from prompt", pii_tag="PII (derived)", regulatory_basis="LLM output may contain account-linked PII from prompt context"),
     ColumnMetadata(table_name="investigation_cases", column_name="field_dispatch_doc", comment="LLM-generated field dispatch document", pii_tag="PII (derived)", regulatory_basis="LLM output may reference account details"),
     ColumnMetadata(table_name="investigation_cases", column_name="outcome", comment="Investigation outcome: THEFT_CONFIRMED, FALSE_POSITIVE, or PENDING", pii_tag=None, regulatory_basis=None),
@@ -4007,6 +4007,6 @@ async def current_user(request: Request):
     forwarded_user = request.headers.get("X-Forwarded-Preferred-Username", "")
     display_name = forwarded_user.split("@")[0].replace(".", " ").title() if forwarded_user else "Demo User"
     return CurrentUserOut(
-        user_name=forwarded_user or "demo.co.uk",
+        user_name=forwarded_user or "demo@ukigas.co.uk",
         display_name=display_name or "Demo User",
     )
