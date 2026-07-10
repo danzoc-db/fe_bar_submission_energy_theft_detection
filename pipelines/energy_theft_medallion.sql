@@ -203,3 +203,19 @@ SELECT
     business_unit
 FROM silver_smart_meter_reads
 GROUP BY account_id, DATE(read_timestamp), fuel_type, business_unit;
+
+CREATE OR REFRESH MATERIALIZED VIEW gold_postcode_cohort_daily (
+  CONSTRAINT has_postcode EXPECT (postcode IS NOT NULL),
+  CONSTRAINT valid_read_date EXPECT (read_date <= current_date())
+)
+CLUSTER BY (postcode, fuel_type, read_date)
+AS
+SELECT
+    pr.postcode,
+    g.fuel_type,
+    g.read_date,
+    AVG(g.daily_kwh) AS cohort_avg_kwh,
+    COUNT(DISTINCT g.account_id) AS account_count
+FROM gold_daily_consumption g
+JOIN property_reference pr ON g.account_id = pr.account_id
+GROUP BY pr.postcode, g.fuel_type, g.read_date;

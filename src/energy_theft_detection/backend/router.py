@@ -27,11 +27,13 @@ from .models import (
     AIComponentRegistryItem,
     AIGatewayAuditEntry,
     AccountDetail,
+    AccountSummary,
     AuditSummary,
     AnomalySignals,
     BoardReport,
     BoardReportKPI,
     ColumnMetadata,
+    ConsumptionChartData,
     DailyBriefing,
     DashboardKPIs,
     DispatchReport,
@@ -1246,6 +1248,7 @@ async def list_flagged_accounts(
 
 
 _gold_daily_ok: bool | None = None
+_gold_postcode_cohort_ok: bool | None = None
 
 
 def _gold_daily_available(db: SQLClient) -> bool:
@@ -1261,31 +1264,26 @@ def _gold_daily_available(db: SQLClient) -> bool:
     return _gold_daily_ok
 
 
-def _parse_struct_array(raw: Any) -> list[dict[str, Any]]:
-    """Parse COLLECT_LIST(NAMED_STRUCT(...)) results from the SQL warehouse."""
-    if not raw:
-        return []
-    if isinstance(raw, str):
-        try:
-            raw = _json.loads(raw)
-        except _json.JSONDecodeError:
-            return []
-    if not isinstance(raw, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for item in raw:
-        if isinstance(item, dict):
-            out.append(item)
-        elif isinstance(item, str):
-            try:
-                out.append(_json.loads(item))
-            except _json.JSONDecodeError:
-                pass
-    return out
+def _gold_postcode_cohort_available(db: SQLClient) -> bool:
+    """Probe gold_postcode_cohort_daily once per process."""
+    global _gold_postcode_cohort_ok
+    if _gold_postcode_cohort_ok is not None:
+        return _gold_postcode_cohort_ok
+    try:
+        db.execute("SELECT 1 FROM gold_postcode_cohort_daily LIMIT 1")
+        _gold_postcode_cohort_ok = True
+    except Exception:
+        _gold_postcode_cohort_ok = False
+    return _gold_postcode_cohort_ok
 
 
-def _account_detail_sql(account_id: str, *, use_gold: bool) -> str:
-    """Single-round-trip account detail: metadata + meter series + cohort series."""
+def _sort_meter_points(points: list[MeterReadPoint]) -> list[MeterReadPoint]:
+    """COLLECT_LIST order is undefined — always sort by day before charting."""
+    return sorted(points, key=lambda p: p.read_timestamp)
+
+
+def _meter_cohort_ctes(account_id: str, *, use_gold: bool, use_cohort_mv: bool) -> tuple[str, str]:
+    """Return (meter_cte, cohort_cte) SQL fragments."""
     if use_gold:
         meter_cte = """
         meter AS (
@@ -1295,7 +1293,17 @@ def _account_detail_sql(account_id: str, *, use_gold: bool) -> str:
               AND fuel_type = (SELECT fuel_type FROM acct)
               AND read_date >= CURRENT_DATE() - INTERVAL 90 DAY
         )""".format(account_id=account_id)
-        cohort_cte = """
+        if use_cohort_mv:
+            cohort_cte = """
+        cohort AS (
+            SELECT read_date AS day, cohort_avg_kwh AS avg_kwh
+            FROM gold_postcode_cohort_daily
+            WHERE postcode = (SELECT postcode FROM acct)
+              AND fuel_type = (SELECT fuel_type FROM acct)
+              AND read_date >= CURRENT_DATE() - INTERVAL 90 DAY
+        )"""
+        else:
+            cohort_cte = """
         cohort AS (
             SELECT g.read_date AS day, AVG(g.daily_kwh) AS avg_kwh
             FROM gold_daily_consumption g
@@ -1328,85 +1336,271 @@ def _account_detail_sql(account_id: str, *, use_gold: bool) -> str:
               AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
             GROUP BY DATE(read_timestamp)
         )""".format(account_id=account_id)
+    return meter_cte, cohort_cte
 
+
+_ACCT_SELECT = """
+    SELECT
+      a.account_id, pr.postcode, pr.region, pr.property_type,
+      pr.council_tax_band, a.fuel_type, a.risk_tier,
+      a.composite_risk_score, a.consumption_drop_pct,
+      a.comms_gap_count_30d,
+      a.isolation_forest_score, a.lstm_deviation_score,
+      a.cohort_deviation_score, a.score_timestamp
+    FROM anomaly_scores a
+    JOIN property_reference pr ON a.account_id = pr.account_id
+    WHERE a.account_id = '{account_id}'
+    LIMIT 1
+"""
+
+_COLLECT_METER = """
+    COALESCE(
+      (SELECT COLLECT_LIST(NAMED_STRUCT('day', day, 'avg_kwh', avg_kwh, 'read_quality', read_quality))
+       FROM (SELECT day, avg_kwh, read_quality FROM meter ORDER BY day)),
+      ARRAY()
+    ) AS meter_data
+"""
+
+_COLLECT_COHORT = """
+    COALESCE(
+      (SELECT COLLECT_LIST(NAMED_STRUCT('day', day, 'avg_kwh', avg_kwh))
+       FROM (SELECT day, avg_kwh FROM cohort ORDER BY day)),
+      ARRAY()
+    ) AS cohort_data
+"""
+
+
+def _account_summary_sql(account_id: str) -> str:
+    return f"""
+        {_ACCT_SELECT.format(account_id=account_id)}
+    """
+
+
+def _consumption_chart_sql(account_id: str, *, use_gold: bool, use_cohort_mv: bool) -> str:
+    meter_cte, cohort_cte = _meter_cohort_ctes(account_id, use_gold=use_gold, use_cohort_mv=use_cohort_mv)
     return f"""
         WITH acct AS (
-            SELECT
-              a.account_id, pr.postcode, pr.region, pr.property_type,
-              pr.council_tax_band, a.fuel_type, a.risk_tier,
-              a.composite_risk_score, a.consumption_drop_pct,
-              a.comms_gap_count_30d,
-              a.isolation_forest_score, a.lstm_deviation_score,
-              a.cohort_deviation_score, a.score_timestamp
-            FROM anomaly_scores a
-            JOIN property_reference pr ON a.account_id = pr.account_id
-            WHERE a.account_id = '{account_id}'
-            LIMIT 1
+            {_ACCT_SELECT.format(account_id=account_id)}
+        ),
+        {meter_cte},
+        {cohort_cte}
+        SELECT
+          (SELECT account_id FROM acct) AS account_id,
+          (SELECT score_timestamp FROM acct) AS score_timestamp,
+          {_COLLECT_METER},
+          {_COLLECT_COHORT}
+    """
+
+
+def _account_detail_sql(account_id: str, *, use_gold: bool, use_cohort_mv: bool = False) -> str:
+    """Single-round-trip account detail: metadata + meter series + cohort series."""
+    meter_cte, cohort_cte = _meter_cohort_ctes(account_id, use_gold=use_gold, use_cohort_mv=use_cohort_mv)
+    return f"""
+        WITH acct AS (
+            {_ACCT_SELECT.format(account_id=account_id)}
         ),
         {meter_cte},
         {cohort_cte}
         SELECT
           acct.*,
-          COALESCE(
-            (SELECT COLLECT_LIST(NAMED_STRUCT('day', day, 'avg_kwh', avg_kwh, 'read_quality', read_quality))
-             FROM meter),
-            ARRAY()
-          ) AS meter_data,
-          COALESCE(
-            (SELECT COLLECT_LIST(NAMED_STRUCT('day', day, 'avg_kwh', avg_kwh)) FROM cohort),
-            ARRAY()
-          ) AS cohort_data
+          {_COLLECT_METER},
+          {_COLLECT_COHORT}
         FROM acct
     """
 
 
-def _account_detail_from_row(r: dict[str, Any]) -> AccountDetail:
-    """Build AccountDetail from a combined SQL row with embedded series arrays."""
+def _signals_from_row(r: dict[str, Any]) -> AnomalySignals:
     iso = float(r["isolation_forest_score"])
     lstm = float(r["lstm_deviation_score"])
     cohort = float(r["cohort_deviation_score"])
     gaps = int(float(r["comms_gap_count_30d"]))
     drop = min(100.0, max(0.0, float(r["consumption_drop_pct"])))
-    fuel = r["fuel_type"]
+    return AnomalySignals(
+        isolation_forest_score=iso,
+        lstm_deviation_score=min(1.0, max(0.0, lstm / 4.0)),
+        cohort_deviation_score=min(1.0, abs(cohort) / 3.5),
+        comms_gap_normalised=min(1.0, gaps / 20.0),
+        consumption_drop_normalised=min(1.0, max(0.0, drop / 70.0)),
+    )
 
-    meter_reads = [
+
+def _meter_series_from_row(r: dict[str, Any]) -> tuple[list[MeterReadPoint], list[MeterReadPoint]]:
+    meter_reads = _sort_meter_points([
         MeterReadPoint(
             read_timestamp=mr["day"],
             consumption_kwh=float(mr["avg_kwh"]),
             read_quality=mr.get("read_quality") or "actual",
         )
         for mr in _parse_struct_array(r.get("meter_data"))
-    ]
-    cohort_avg_reads = [
+    ])
+    cohort_avg_reads = _sort_meter_points([
         MeterReadPoint(
             read_timestamp=cr["day"],
             consumption_kwh=float(cr["avg_kwh"]),
             read_quality="actual",
         )
         for cr in _parse_struct_array(r.get("cohort_data"))
-    ]
+    ])
+    return meter_reads, cohort_avg_reads
 
-    return AccountDetail(
+
+def _account_summary_from_row(r: dict[str, Any]) -> AccountSummary:
+    drop = min(100.0, max(0.0, float(r["consumption_drop_pct"])))
+    return AccountSummary(
         account_id=r["account_id"],
         postcode=r["postcode"],
         region=r["region"],
         property_type=r["property_type"],
         council_tax_band=r["council_tax_band"],
-        fuel_type=FuelType(fuel),
+        fuel_type=FuelType(r["fuel_type"]),
         risk_tier=RiskTier(r["risk_tier"]),
         composite_risk_score=float(r["composite_risk_score"]),
         consumption_drop_pct=drop,
-        comms_gap_count_30d=gaps,
-        signals=AnomalySignals(
-            isolation_forest_score=iso,
-            lstm_deviation_score=min(1.0, max(0.0, lstm / 4.0)),
-            cohort_deviation_score=min(1.0, abs(cohort) / 3.5),
-            comms_gap_normalised=min(1.0, gaps / 20.0),
-            consumption_drop_normalised=min(1.0, max(0.0, drop / 70.0)),
-        ),
+        comms_gap_count_30d=int(float(r["comms_gap_count_30d"])),
+        signals=_signals_from_row(r),
+    )
+
+
+def _consumption_chart_from_row(r: dict[str, Any]) -> ConsumptionChartData:
+    meter_reads, cohort_avg_reads = _meter_series_from_row(r)
+    return ConsumptionChartData(
+        account_id=r["account_id"],
         meter_reads=meter_reads,
         cohort_avg_reads=cohort_avg_reads,
         anomaly_onset=r.get("score_timestamp"),
+    )
+
+
+def _parse_struct_array(raw: Any) -> list[dict[str, Any]]:
+    """Parse COLLECT_LIST(NAMED_STRUCT(...)) results from the SQL warehouse."""
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        try:
+            raw = _json.loads(raw)
+        except _json.JSONDecodeError:
+            return []
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            out.append(item)
+        elif isinstance(item, str):
+            try:
+                out.append(_json.loads(item))
+            except _json.JSONDecodeError:
+                pass
+    return out
+
+
+def _account_detail_from_row(r: dict[str, Any]) -> AccountDetail:
+    """Build AccountDetail from a combined SQL row with embedded series arrays."""
+    summary = _account_summary_from_row(r)
+    meter_reads, cohort_avg_reads = _meter_series_from_row(r)
+    return AccountDetail(
+        **summary.model_dump(),
+        meter_reads=meter_reads,
+        cohort_avg_reads=cohort_avg_reads,
+        anomaly_onset=r.get("score_timestamp"),
+    )
+
+
+def _execute_chart_sql(db: SQLClient, account_id: str) -> list[dict[str, Any]] | None:
+    use_gold = _gold_daily_available(db)
+    use_cohort_mv = use_gold and _gold_postcode_cohort_available(db)
+    try:
+        return db.execute(
+            _consumption_chart_sql(account_id, use_gold=use_gold, use_cohort_mv=use_cohort_mv)
+        )
+    except Exception as e:
+        if use_gold:
+            logger.warning(f"gold chart query failed, falling back to bronze: {e}")
+            return db.execute(
+                _consumption_chart_sql(account_id, use_gold=False, use_cohort_mv=False)
+            )
+        raise
+
+
+def _execute_detail_sql(db: SQLClient, account_id: str) -> list[dict[str, Any]] | None:
+    use_gold = _gold_daily_available(db)
+    use_cohort_mv = use_gold and _gold_postcode_cohort_available(db)
+    try:
+        return db.execute(
+            _account_detail_sql(account_id, use_gold=use_gold, use_cohort_mv=use_cohort_mv)
+        )
+    except Exception as e:
+        if use_gold:
+            logger.warning(f"gold_daily_consumption query failed, falling back to bronze: {e}")
+            return db.execute(
+                _account_detail_sql(account_id, use_gold=False, use_cohort_mv=False)
+            )
+        raise
+
+
+@api.get(
+    "/investigation/accounts/{account_id}/summary",
+    response_model=AccountSummary,
+    operation_id="getAccountSummary",
+)
+async def get_account_summary(request: Request, account_id: str):
+    """Fast account metadata + signals (no chart time-series)."""
+    cache_key = f"account_summary:{account_id}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    db = _sql(request)
+    if db:
+        rows = db.execute(_account_summary_sql(account_id))
+        if rows:
+            result = _account_summary_from_row(rows[0])
+            _cache_set(cache_key, result)
+            return result
+    return AccountSummary(
+        account_id=account_id,
+        postcode="NW1 5",
+        region="London",
+        property_type="terraced",
+        council_tax_band="D",
+        fuel_type=FuelType.ELECTRICITY,
+        risk_tier=RiskTier.HIGH,
+        composite_risk_score=0.87,
+        consumption_drop_pct=62.3,
+        comms_gap_count_30d=8,
+        signals=AnomalySignals(
+            isolation_forest_score=0.92,
+            lstm_deviation_score=0.85,
+            cohort_deviation_score=0.78,
+            comms_gap_normalised=0.67,
+            consumption_drop_normalised=0.89,
+        ),
+    )
+
+
+@api.get(
+    "/investigation/accounts/{account_id}/consumption-chart",
+    response_model=ConsumptionChartData,
+    operation_id="getConsumptionChart",
+)
+async def get_consumption_chart(request: Request, account_id: str):
+    """90-day consumption series for the investigation drawer chart."""
+    cache_key = f"consumption_chart:{account_id}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    db = _sql(request)
+    if db:
+        rows = _execute_chart_sql(db, account_id)
+        if rows:
+            result = _consumption_chart_from_row(rows[0])
+            _cache_set(cache_key, result)
+            return result
+    return ConsumptionChartData(
+        account_id=account_id,
+        meter_reads=[],
+        cohort_avg_reads=[],
     )
 
 
@@ -1428,15 +1622,7 @@ async def get_account_detail(request: Request, account_id: str):
 
     db = _sql(request)
     if db:
-        use_gold = _gold_daily_available(db)
-        try:
-            rows = db.execute(_account_detail_sql(account_id, use_gold=use_gold))
-        except Exception as e:
-            if use_gold:
-                logger.warning(f"gold_daily_consumption query failed, falling back to bronze: {e}")
-                rows = db.execute(_account_detail_sql(account_id, use_gold=False))
-            else:
-                raise
+        rows = _execute_detail_sql(db, account_id)
         if rows:
             detail_result = _account_detail_from_row(rows[0])
             _cache_set(cache_key, detail_result)

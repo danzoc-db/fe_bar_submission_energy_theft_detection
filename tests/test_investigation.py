@@ -108,6 +108,37 @@ class TestAccountDetail:
         for key in ("isolation_forest_score", "lstm_deviation_score", "cohort_deviation_score"):
             assert key in data["signals"]
 
+    def test_account_summary_returns_200(self, client):
+        """MUST: Fast summary endpoint responds without chart series."""
+        r = client.get("/api/investigation/accounts/BG-0000001/summary")
+        assert r.status_code == 200
+        data = r.json()
+        assert "signals" in data
+        assert "meter_reads" not in data
+
+    def test_consumption_chart_returns_200(self, client):
+        """MUST: Chart endpoint returns meter series."""
+        r = client.get("/api/investigation/accounts/BG-0000001/consumption-chart")
+        assert r.status_code == 200
+        data = r.json()
+        assert "meter_reads" in data
+        assert "cohort_avg_reads" in data
+
+    def test_meter_series_sorted_chronologically(self):
+        """MUST: COLLECT_LIST order is normalized before charting."""
+        from datetime import datetime
+
+        from energy_theft_detection.backend.models import MeterReadPoint
+        from energy_theft_detection.backend.router import _sort_meter_points
+
+        unsorted = [
+            MeterReadPoint(read_timestamp=datetime(2026, 3, 1), consumption_kwh=3.0, read_quality="actual"),
+            MeterReadPoint(read_timestamp=datetime(2026, 1, 1), consumption_kwh=1.0, read_quality="actual"),
+            MeterReadPoint(read_timestamp=datetime(2026, 2, 1), consumption_kwh=2.0, read_quality="actual"),
+        ]
+        sorted_pts = _sort_meter_points(unsorted)
+        assert [p.consumption_kwh for p in sorted_pts] == [1.0, 2.0, 3.0]
+
 
 class TestLLMCaseSummary:
     """TC-I3: Bedrock LLM case summary."""
@@ -148,6 +179,13 @@ class TestAccountDetailSQL:
         sql = _account_detail_sql("UKI-0000001", use_gold=True)
         assert "gold_daily_consumption" in sql
         assert "smart_meter_reads" not in sql
+        assert "ORDER BY day" in sql
+
+    def test_consumption_chart_sql_uses_cohort_mv_when_enabled(self):
+        from energy_theft_detection.backend.router import _consumption_chart_sql
+
+        sql = _consumption_chart_sql("UKI-0000001", use_gold=True, use_cohort_mv=True)
+        assert "gold_postcode_cohort_daily" in sql
 
     def test_account_detail_sql_bronze_fallback(self):
         from energy_theft_detection.backend.router import _account_detail_sql

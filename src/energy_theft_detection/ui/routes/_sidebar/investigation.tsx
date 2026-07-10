@@ -37,25 +37,13 @@ import {
 } from "@/components/ui/dialog";
 import {
   useListFlaggedAccountsSuspense,
-  useGetAccountDetailSuspense,
-  getAccountDetail,
-  getAccountDetailKey,
   useGenerateDispatchReport,
   useGetInvestigationKPIsSuspense,
   useGetDailyBriefingSuspense,
   getInvestigationKPIs,
   getInvestigationKPIsKey,
-  getDailyBriefing,
-  getDailyBriefingKey,
   listFlaggedAccounts,
   listFlaggedAccountsKey,
-  getAIComponents,
-  getAIComponentsKey,
-  getPIIMatrix,
-  getPIIMatrixKey,
-  getColumnMetadata,
-  getColumnMetadataKey,
-  getDashboardKPIs,
   getDashboardKPIsKey,
   useCloseInvestigation,
 } from "@/lib/api";
@@ -65,7 +53,10 @@ import selector from "@/lib/selector";
 import {
   getCaseSummaryWithPreview,
   getCaseSummaryWithPreviewKey,
-  withModelHeaders,
+  getAccountSummary,
+  getAccountSummaryKey,
+  getConsumptionChart,
+  getConsumptionChartKey,
   type AccountRowPreview,
 } from "@/lib/api-fetch";
 import {
@@ -148,14 +139,7 @@ function InvestigationPending() {
 
 export const Route = createFileRoute("/_sidebar/investigation")({
   loader: ({ context: { queryClient } }) => {
-    queryClient.ensureQueryData({ queryKey: getAIComponentsKey(), queryFn: getAIComponents });
-    queryClient.ensureQueryData({ queryKey: getPIIMatrixKey(), queryFn: getPIIMatrix });
-    queryClient.ensureQueryData({ queryKey: getColumnMetadataKey(), queryFn: getColumnMetadata });
-    queryClient.ensureQueryData({ queryKey: getDashboardKPIsKey(), queryFn: getDashboardKPIs });
-
-    queryClient.ensureQueryData({ queryKey: getDailyBriefingKey(), queryFn: getDailyBriefing });
     queryClient.ensureQueryData({ queryKey: listFlaggedAccountsKey(), queryFn: () => listFlaggedAccounts() });
-
     return queryClient.ensureQueryData({ queryKey: getInvestigationKPIsKey(), queryFn: getInvestigationKPIs });
   },
   pendingComponent: InvestigationPending,
@@ -695,9 +679,12 @@ function AccountTable({
                 className="cursor-pointer hover:bg-muted/50"
                 onMouseEnter={() => {
                   queryClient.prefetchQuery({
-                    queryKey: getAccountDetailKey({ account_id: a.account_id }),
-                    queryFn: () =>
-                      getAccountDetail({ account_id: a.account_id }, withModelHeaders()),
+                    queryKey: getAccountSummaryKey(a.account_id),
+                    queryFn: () => getAccountSummary(a.account_id),
+                  });
+                  queryClient.prefetchQuery({
+                    queryKey: getConsumptionChartKey(a.account_id),
+                    queryFn: () => getConsumptionChart(a.account_id),
                   });
                   queryClient.prefetchQuery({
                     queryKey: getCaseSummaryWithPreviewKey(a.account_id, preview),
@@ -924,8 +911,11 @@ function AccountDetailDrawer({
 }
 
 function AccountDetailSignals({ accountId }: { accountId: string }) {
-  const { data: detailWrapper } = useGetAccountDetailSuspense({ params: { account_id: accountId } });
-  const detail = detailWrapper.data;
+  const { data: summaryWrapper } = useSuspenseQuery({
+    queryKey: getAccountSummaryKey(accountId),
+    queryFn: () => getAccountSummary(accountId),
+  });
+  const detail = summaryWrapper.data;
   const signals = detail.signals;
 
   return (
@@ -989,8 +979,11 @@ function AccountDetailSignals({ accountId }: { accountId: string }) {
 }
 
 function AccountDetailChartAndDispatch({ accountId }: { accountId: string }) {
-  const { data: detailWrapper } = useGetAccountDetailSuspense({ params: { account_id: accountId } });
-  const detail = detailWrapper.data;
+  const { data: chartWrapper } = useSuspenseQuery({
+    queryKey: getConsumptionChartKey(accountId),
+    queryFn: () => getConsumptionChart(accountId),
+  });
+  const chart = chartWrapper.data;
   const { modelConfig } = useDemoSettings();
 
   const [dispatch, setDispatch] = useState<DispatchReport | null>(null);
@@ -1067,9 +1060,9 @@ function AccountDetailChartAndDispatch({ accountId }: { accountId: string }) {
         </CardHeader>
         <CardContent>
           <ConsumptionChart
-            meterReads={detail.meter_reads}
-            cohortReads={detail.cohort_avg_reads}
-            anomalyOnset={detail.anomaly_onset ?? null}
+            meterReads={chart.meter_reads}
+            cohortReads={chart.cohort_avg_reads}
+            anomalyOnset={chart.anomaly_onset ?? null}
           />
         </CardContent>
       </Card>
@@ -1462,6 +1455,12 @@ function CloseInvestigationSection({ accountId }: { accountId: string }) {
 
 const Plot = lazy(() => import("react-plotly.js"));
 
+function sortReadSeries(reads: MeterReadPoint[]): MeterReadPoint[] {
+  return [...reads].sort(
+    (a, b) => new Date(a.read_timestamp).getTime() - new Date(b.read_timestamp).getTime(),
+  );
+}
+
 function ConsumptionChart({
   meterReads,
   cohortReads,
@@ -1472,10 +1471,12 @@ function ConsumptionChart({
   anomalyOnset: string | null;
 }) {
   const { accountDates, accountVals, cohortDates, cohortVals, shapes, annotations } = useMemo(() => {
-    const ad = meterReads.map((r) => r.read_timestamp);
-    const av = meterReads.map((r) => r.consumption_kwh);
-    const cd = cohortReads.map((r) => r.read_timestamp);
-    const cv = cohortReads.map((r) => r.consumption_kwh);
+    const sortedMeter = sortReadSeries(meterReads);
+    const sortedCohort = sortReadSeries(cohortReads);
+    const ad = sortedMeter.map((r) => r.read_timestamp);
+    const av = sortedMeter.map((r) => r.consumption_kwh);
+    const cd = sortedCohort.map((r) => r.read_timestamp);
+    const cv = sortedCohort.map((r) => r.consumption_kwh);
 
     const sh: Plotly.Shape[] = [];
     const an: Plotly.Annotations[] = [];

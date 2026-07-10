@@ -126,6 +126,29 @@ class AnomalySignals(BaseModel):
     consumption_drop_normalised: float
 
 
+class AccountSummary(BaseModel):
+    """Fast account metadata + signals (no time-series chart data)."""
+    account_id: str
+    postcode: str
+    region: str
+    property_type: str
+    council_tax_band: str
+    fuel_type: FuelType
+    risk_tier: RiskTier
+    composite_risk_score: float
+    consumption_drop_pct: float
+    comms_gap_count_30d: int
+    signals: AnomalySignals
+
+
+class ConsumptionChartData(BaseModel):
+    """90-day consumption series for the investigation drawer chart."""
+    account_id: str
+    meter_reads: list[MeterReadPoint]
+    cohort_avg_reads: list[MeterReadPoint]
+    anomaly_onset: datetime | None = None
+
+
 class AccountDetail(BaseModel):
     """Full account view for the detail drawer."""
     account_id: str

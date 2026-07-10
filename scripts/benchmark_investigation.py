@@ -67,8 +67,9 @@ def main() -> int:
         print("No flagged accounts returned.", file=sys.stderr)
         return 1
 
-    detail_times: list[float] = []
     summary_times: list[float] = []
+    chart_times: list[float] = []
+    case_summary_times: list[float] = []
 
     for acct in accounts:
         acct_id = acct["account_id"]
@@ -77,30 +78,38 @@ def main() -> int:
         gaps = acct.get("comms_gap_count_30d", 0)
         risk = acct.get("risk_tier", "HIGH")
 
-        detail_elapsed, detail_status = _timed_get(
-            f"/api/investigation/accounts/{acct_id}",
+        summary_elapsed, summary_status = _timed_get(
+            f"/api/investigation/accounts/{acct_id}/summary",
             headers,
         )
-        detail_times.append(detail_elapsed)
+        summary_times.append(summary_elapsed)
 
-        summary_path = (
+        chart_elapsed, chart_status = _timed_get(
+            f"/api/investigation/accounts/{acct_id}/consumption-chart",
+            headers,
+        )
+        chart_times.append(chart_elapsed)
+
+        case_path = (
             f"/api/llm/case-summary/{acct_id}"
             f"?skip_sql=true&risk_level={risk}"
             f"&consumption_drop_pct={drop}"
             f"&composite_risk_score={score}"
             f"&comms_gap_count_30d={gaps}"
         )
-        summary_elapsed, summary_status = _timed_get(summary_path, headers)
-        summary_times.append(summary_elapsed)
+        case_elapsed, case_status = _timed_get(case_path, headers)
+        case_summary_times.append(case_elapsed)
 
         print(
-            f"  {acct_id}: detail={detail_elapsed:.2f}s ({detail_status}), "
-            f"summary={summary_elapsed:.2f}s ({summary_status})"
+            f"  {acct_id}: summary={summary_elapsed:.2f}s ({summary_status}), "
+            f"chart={chart_elapsed:.2f}s ({chart_status}), "
+            f"case_summary={case_elapsed:.2f}s ({case_status})"
         )
 
     print()
-    print(f"Account detail  P50={_p50(detail_times):.2f}s  P95={_p95(detail_times):.2f}s")
-    print(f"Case summary    P50={_p50(summary_times):.2f}s  P95={_p95(summary_times):.2f}s")
+    print(f"Account summary P50={_p50(summary_times):.2f}s  P95={_p95(summary_times):.2f}s")
+    print(f"Consumption chart P50={_p50(chart_times):.2f}s  P95={_p95(chart_times):.2f}s")
+    print(f"Case summary    P50={_p50(case_summary_times):.2f}s  P95={_p95(case_summary_times):.2f}s")
     return 0
 
 
