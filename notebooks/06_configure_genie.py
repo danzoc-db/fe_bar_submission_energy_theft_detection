@@ -193,15 +193,22 @@ def _data_sources():
     return ds
 
 
+def _sql_lines(sql: str) -> list[str]:
+    """Split SQL into line array format required by Genie serialized_space."""
+    lines = sql.strip().split("\n")
+    return [line + "\n" for line in lines]
+
+
 def _build_example_sql_entries():
     """Build example_question_sqls entries for serialized_space."""
     entries = []
-    for ex in EXAMPLE_QUESTION_SQLS:
+    for idx, ex in enumerate(EXAMPLE_QUESTION_SQLS, start=1):
         entries.append({
-            "id": str(uuid.uuid4()).replace("-", ""),
-            "question": ex["question"],
-            "sql": ex["sql"].strip(),
+            "id": f"{idx:032x}",
+            "question": [ex["question"]],
+            "sql": _sql_lines(ex["sql"]),
         })
+    entries.sort(key=lambda e: e["id"])
     return entries
 
 
