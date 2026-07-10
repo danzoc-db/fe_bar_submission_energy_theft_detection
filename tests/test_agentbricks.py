@@ -7,8 +7,8 @@ Validates that the Multi-Agent Supervisor (MAS) for Agent Atlas is:
 - Provisioned by the 08_configure_agent_atlas notebook
 - Integrated into the DAB bundle as a variable + app resource
 
-Unit tests run without network; integration tests require `azsu-centrica-demo`
-profile and are marked with `@pytest.mark.integration`.
+Unit tests run without network; integration tests require APP_URL and
+DATABRICKS_PROFILE env vars and are marked with `@pytest.mark.integration`.
 """
 
 import os
@@ -181,16 +181,20 @@ class TestDABIntegration:
         assert "MAS_ENDPOINT" in content
 
     def test_each_target_has_mas_variable(self):
-        """MUST: All targets define mas_endpoint variable (even if empty)."""
+        """MUST: All bundle targets define mas_endpoint variable (even if empty)."""
+        import re
+
         content = DATABRICKS_YML.read_text()
-        targets = ["dev:", "azsu:", "azure-field-demo:"]
-        for target in targets:
-            target_idx = content.find(target)
-            if target_idx == -1:
-                continue
-            target_section = content[target_idx:target_idx + 500]
-            assert "mas_endpoint" in target_section, (
-                f"Target {target} is missing mas_endpoint variable"
+        targets_block = content.split("targets:", 1)[1]
+        target_starts = list(re.finditer(r"^  ([\w-]+):\n", targets_block, re.MULTILINE))
+        assert target_starts, "No bundle targets found in databricks.yml"
+        for i, match in enumerate(target_starts):
+            name = match.group(1)
+            start = match.start()
+            end = target_starts[i + 1].start() if i + 1 < len(target_starts) else len(targets_block)
+            section = targets_block[start:end]
+            assert "mas_endpoint" in section, (
+                f"Target {name} is missing mas_endpoint variable"
             )
 
 
@@ -315,13 +319,15 @@ class TestPatchAppYmlMAS:
 # ---------------------------------------------------------------------------
 
 
-_INTEGRATION_MAS_ENDPOINT = "mas-c41b54be-endpoint"
-_INTEGRATION_PROFILE = "azsu-centrica-demo"
-_INTEGRATION_APP_URL = "https://energy-theft-detection-7405616473758737.17.azure.databricksapps.com"
+_INTEGRATION_MAS_ENDPOINT = os.environ.get("MAS_ENDPOINT", "")
+_INTEGRATION_PROFILE = os.environ.get("DATABRICKS_PROFILE", "")
+_INTEGRATION_APP_URL = os.environ.get("APP_URL", "")
 
 
 @pytest.fixture(scope="module")
 def _integration_workspace():
+    if not _INTEGRATION_PROFILE:
+        pytest.skip("DATABRICKS_PROFILE environment variable is required")
     from databricks.sdk import WorkspaceClient
 
     try:
@@ -334,8 +340,11 @@ def _integration_workspace():
 class TestRemoteMASIntegration:
     """TC-AB7: MAS endpoint responds on deployed workspace.
 
-    Run with: pytest tests/test_agentbricks.py -m integration -v
-    Requires: azsu-centrica-demo profile + deployed app
+    Run with:
+        APP_URL=https://<your-app>.databricksapps.com \\
+        DATABRICKS_PROFILE=<your-profile> \\
+        MAS_ENDPOINT=<mas-endpoint-name> \\
+        pytest tests/test_agentbricks.py -m integration -v
     """
 
     @pytest.fixture
@@ -344,6 +353,8 @@ class TestRemoteMASIntegration:
 
     @pytest.fixture
     def mas_endpoint_name(self):
+        if not _INTEGRATION_MAS_ENDPOINT:
+            pytest.skip("MAS_ENDPOINT environment variable is required")
         return _INTEGRATION_MAS_ENDPOINT
 
     def test_mas_endpoint_exists(self, workspace, mas_endpoint_name):
@@ -401,6 +412,8 @@ class TestRemoteMASIntegration:
 
     def test_board_report_generates_content(self, workspace):
         """MUST: Board report endpoint returns content (via MAS or fallback)."""
+        if not _INTEGRATION_APP_URL:
+            pytest.skip("APP_URL environment variable is required")
         import httpx
 
         headers = workspace.config.authenticate()

@@ -38,3 +38,6 @@ bun.lock
 .DS_Store
 Thumbs.db
 .apx/
+
+# Databricks CLI notebook sync cache (never commit)
+notebooks/.databricks/

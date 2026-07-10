@@ -4,11 +4,13 @@ These tests verify the live application end-to-end including SQL Warehouse
 connectivity, Delta table reads/writes, and response latency.
 
 Usage:
+    APP_URL=https://<your-app>.databricksapps.com \\
+    DATABRICKS_PROFILE=<your-profile> \\
     pytest tests/test_remote_integration.py -v
 
 Requires:
-    - `azsu-centrica-demo` Databricks CLI profile configured
-    - The app deployed and running at the expected URL
+    - APP_URL and DATABRICKS_PROFILE environment variables
+    - The app deployed and running at APP_URL
 """
 
 import os
@@ -19,12 +21,23 @@ import pytest
 import requests
 from databricks.sdk import WorkspaceClient
 
-APP_URL = os.environ.get(
-    "APP_URL",
-    "https://energy-theft-detection-7405616473758737.17.azure.databricksapps.com",
-)
-PROFILE = os.environ.get("DATABRICKS_PROFILE", "azsu-centrica-demo")
+APP_URL = os.environ.get("APP_URL", "")
+PROFILE = os.environ.get("DATABRICKS_PROFILE", "")
 LATENCY_BUDGET_S = 15
+
+
+def pytest_configure(config):
+    if not APP_URL or not PROFILE:
+        config.addinivalue_line(
+            "markers",
+            "skip_remote_integration: APP_URL and DATABRICKS_PROFILE must be set",
+        )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _require_remote_env():
+    if not APP_URL or not PROFILE:
+        pytest.skip("APP_URL and DATABRICKS_PROFILE environment variables are required")
 
 
 @pytest.fixture(scope="session")
@@ -159,6 +172,38 @@ class TestRemoteFlaggedAccounts:
             data = r.json()
             assert "signals" in data
             assert "meter_reads" in data
+
+    def test_account_detail_latency_budget(self, api):
+        """Account detail cold path should complete within 2.0s."""
+        accounts = api.get("/api/investigation/accounts?limit=1").json()
+        if not accounts:
+            pytest.skip("No flagged accounts available")
+        acct_id = accounts[0]["account_id"]
+        t0 = time.monotonic()
+        r = api.get(f"/api/investigation/accounts/{acct_id}")
+        elapsed = time.monotonic() - t0
+        assert r.status_code == 200
+        assert elapsed < 2.0, f"Account detail took {elapsed:.2f}s (budget: 2.0s)"
+
+    def test_case_summary_latency_budget(self, api):
+        """Live LLM case summary cold path should complete within 4.0s."""
+        accounts = api.get("/api/investigation/accounts?limit=1").json()
+        if not accounts:
+            pytest.skip("No flagged accounts available")
+        acct = accounts[0]
+        acct_id = acct["account_id"]
+        path = (
+            f"/api/llm/case-summary/{acct_id}"
+            f"?skip_sql=true&risk_level={acct.get('risk_tier', 'HIGH')}"
+            f"&consumption_drop_pct={acct.get('consumption_drop_pct', 0)}"
+            f"&composite_risk_score={acct.get('composite_risk_score', 0)}"
+            f"&comms_gap_count_30d={acct.get('comms_gap_count_30d', 0)}"
+        )
+        t0 = time.monotonic()
+        r = api.get(path)
+        elapsed = time.monotonic() - t0
+        assert r.status_code == 200
+        assert elapsed < 4.0, f"Case summary took {elapsed:.2f}s (budget: 4.0s)"
 
 
 class TestRemoteGovernance:

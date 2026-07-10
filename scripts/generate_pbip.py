@@ -441,7 +441,7 @@ def generate_report(
     out_dir: Path,
     report,
     shared,
-    catalog_default: str = "zoccali_fevm",
+    catalog_default: str = "demo_catalog",
     schema_default: str = "energy_theft_protection",
 ) -> dict:
     slug = _slug(report.name)
@@ -612,7 +612,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", default=str(DEFAULT_OUT_DIR), help="Output directory (default: dashboards/powerbi)")
     parser.add_argument("--only", help="Generate just one report by name (e.g. pbi_revenue_protection_exec)")
-    parser.add_argument("--catalog", default="zoccali_fevm", help="Default UC catalog baked into the M parameter")
+    parser.add_argument("--catalog", default="demo_catalog", help="Default UC catalog baked into the M parameter")
     parser.add_argument("--schema", default="energy_theft_protection", help="Default UC schema baked into the M parameter")
     parser.add_argument("--validate-only", action="store_true", help="Skip generation; just validate existing .pbip dirs")
     args = parser.parse_args()

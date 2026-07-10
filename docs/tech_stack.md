@@ -25,7 +25,7 @@
            │
    ┌───────┴─────────────────────────────────────────────┐
    │             Unity Catalog                            │
-   │  dz_demos.energy_theft_protection                    │
+   │  <your_catalog>.energy_theft_protection                    │
    │  ┌────────────┐ ┌──────────────┐ ┌───────────────┐  │
    │  │Delta Tables│ │Metric Views  │ │MLflow Models  │  │
    │  │(6 tables)  │ │(2 KPI views) │ │(2 registered) │  │
@@ -90,7 +90,7 @@ models in the API layer.
 | Bundle Config | `databricks.yml` | App definition, deployment targets |
 | App Entrypoint | `app.yml` | Uvicorn command for production |
 | Deployment | `databricks bundle deploy` | Push to Databricks Apps |
-| Profile | `azure-field-demos` | Workspace authentication |
+| Profile | `<your-profile>` | Workspace authentication |
 
 ---
 
@@ -101,11 +101,11 @@ All data access is read-only via SQL Warehouse Statement Execution API:
 ```python
 from databricks.sdk import WorkspaceClient
 
-w = WorkspaceClient(profile="azure-field-demos")
+w = WorkspaceClient(profile="<your-profile>")
 
 result = w.statement_execution.execute_statement(
     warehouse_id=WAREHOUSE_ID,
-    catalog="dz_demos",
+    catalog="<your_catalog>",
     schema="energy_theft_protection",
     statement="SELECT * FROM anomaly_scores WHERE risk_tier = 'HIGH' LIMIT 100"
 )

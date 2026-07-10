@@ -35,12 +35,12 @@ class TestCatalogConfiguration:
 
     def test_catalog_reads_from_env(self):
         """MUST: Catalog reads from CATALOG env var for workspace portability."""
-        os.environ["CATALOG"] = "azsu_centrica_demo"
+        os.environ["CATALOG"] = "test_catalog_demo"
         try:
             from energy_theft_detection.backend.config import AppConfig
 
             config = AppConfig(sql_warehouse_id="", _env_file=None)
-            assert config.catalog == "azsu_centrica_demo"
+            assert config.catalog == "test_catalog_demo"
         finally:
             os.environ.pop("CATALOG", None)
 
