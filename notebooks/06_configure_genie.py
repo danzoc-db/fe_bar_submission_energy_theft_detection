@@ -48,32 +48,13 @@ TABLE_IDENTIFIERS = [
 
 DESCRIPTION = f"""Susie Chambers executive analytics space for CFO prep, board reporting, and portfolio health monitoring. Uses governed Unity Catalog Metric Views for consistent KPI definitions across {CATALOG}.{SCHEMA}."""
 
-INSTRUCTIONS = f"""Prefer metric views for KPI questions (theft precision rate, revenue recovery, risk exposure). When a metric view does not have the required dimension or cannot answer the question, fall back to querying the underlying tables directly (investigation_cases, anomaly_scores, property_reference). You have full access to these tables — JOIN them as needed.
+INSTRUCTIONS = f"""Prefer metric views (theft_detection_metrics, risk_exposure_metrics) for KPI questions. Fall back to investigation_cases, anomaly_scores, or property_reference only when a metric view lacks the needed dimension.
 
-Default time grain is monthly unless user specifies otherwise.
-Express monetary values in GBP with comma separators.
+Default time grain is monthly unless the user specifies otherwise. Express monetary values in GBP with comma separators. Round percentages to one decimal place.
 
-JOIN PATTERNS — use these when metric views cannot answer:
-- Fuel type on investigation data: JOIN investigation_cases ic ON ic.account_id = anomaly_scores.account_id to get fuel_type from anomaly_scores.
-- Property details on cases: JOIN investigation_cases ic ON ic.account_id = property_reference.account_id.
-- Combined risk + case data: JOIN anomaly_scores a ON a.account_id = investigation_cases.account_id.
+RUN RATE CONTEXT: ML model deployed October 2025; Oct–Dec 2025 was ramp-up. Annual recovery target £97M. For run rate or annualised pace use calendar year 2026 only (January onwards). Cumulative recovery from October 2025; run rate from January 2026.
 
-RUN RATE & TARGET CONTEXT:
-
-- The ML detection model was deployed in October 2025. Oct–Dec 2025 was the ramp-up period as the case pipeline scaled from zero.
-- Annual recovery target: £97M.
-- When calculating run rate or annualised pace, use calendar year 2026 data only (January 2026 onwards). Do not include 2025 ramp-up months in run rate calculations.
-- When showing monthly trends that include Oct–Dec 2025, note that those months reflect the initial ramp-up period.
-- Cumulative recovery should be measured from the start of deployment (October 2025), but run rate should be year-on-year from January 2026.
-
-When asked about regional performance, use the Region dimension from theft_detection_metrics (revenue is tied to closed_timestamp via the Month dimension).
-When asked about postcode hotspots, use risk_exposure_metrics with Postcode Sector dimension (HIGH Risk Accounts, Average Risk Score).
-When asked about fuel type breakdowns on investigation/recovery data, JOIN investigation_cases to anomaly_scores on account_id to get fuel_type — note this is advanced and error-prone; prefer metric-view measures when possible.
-
-TRIAGE / BACKLOG QUESTIONS (OPEN + HIGH):
-- Count and average composite_risk_score: query anomaly_scores WHERE risk_tier = 'HIGH' AND investigation_status = 'OPEN'.
-- Model confidence: latest row from model_performance_log WHERE risk_tier = 'HIGH' (precision_pct).
-- Indicative yield context: MEASURE(`Avg Recovery Per Case`) from theft_detection_metrics for YTD (do not multiply into a guarantee; frame as indicative given published precision)."""
+Regional performance: use Region on theft_detection_metrics. Postcode hotspots: risk_exposure_metrics with Postcode Sector. OPEN HIGH triage: anomaly_scores WHERE risk_tier = 'HIGH' AND investigation_status = 'OPEN'."""
 
 SAMPLE_QUESTIONS = [
     "What is our annualised run rate based on 2026 monthly recovery so far?",
@@ -85,6 +66,74 @@ SAMPLE_QUESTIONS = [
     "What percentage of our estate is flagged as HIGH risk, broken down by fuel type?",
     "What is the monthly revenue recovery trend since the ML model was deployed in October 2025?",
     "Are we on track to hit the £97M annual recovery target? Show cumulative recovery vs linear pace.",
+]
+
+EXAMPLE_QUESTION_SQLS = [
+    {
+        "question": "What is our annualised run rate based on 2026 monthly recovery so far?",
+        "sql": f"""SELECT SUM(revenue_recovered_gbp) / NULLIF(GREATEST(MONTH(CURRENT_DATE()) - 1, 1), 0) * 12 AS annualised_run_rate
+FROM {CATALOG}.{SCHEMA}.investigation_cases
+WHERE outcome = 'THEFT_CONFIRMED' AND YEAR(closed_timestamp) = 2026 AND closed_timestamp IS NOT NULL""",
+    },
+    {
+        "question": "Are we on track to hit the £97M annual recovery target?",
+        "sql": f"""SELECT SUM(revenue_recovered_gbp) AS cumulative_recovery,
+  SUM(CASE WHEN YEAR(closed_timestamp) = 2026 THEN revenue_recovered_gbp ELSE 0 END)
+    / NULLIF(GREATEST(MONTH(CURRENT_DATE()) - 1, 1), 0) * 12 AS annualised_run_rate
+FROM {CATALOG}.{SCHEMA}.investigation_cases
+WHERE outcome = 'THEFT_CONFIRMED' AND closed_timestamp IS NOT NULL""",
+    },
+    {
+        "question": "Which postcode sectors have the most HIGH risk accounts and what is each sector's average composite risk score? Rank the top 10.",
+        "sql": f"""SELECT postcode_sector, COUNT(*) AS high_risk_accounts, AVG(composite_risk_score) AS avg_risk_score
+FROM {CATALOG}.{SCHEMA}.anomaly_scores
+WHERE risk_tier = 'HIGH'
+GROUP BY postcode_sector
+ORDER BY high_risk_accounts DESC
+LIMIT 10""",
+    },
+    {
+        "question": "For 2026 year-to-date, which region recovered the most revenue from confirmed theft and which the least? Show total GBP by region.",
+        "sql": f"""SELECT region, SUM(revenue_recovered_gbp) AS total_recovered
+FROM {CATALOG}.{SCHEMA}.investigation_cases
+WHERE outcome = 'THEFT_CONFIRMED' AND YEAR(closed_timestamp) = 2026 AND closed_timestamp IS NOT NULL
+GROUP BY region
+ORDER BY total_recovered DESC""",
+    },
+    {
+        "question": "Show me total revenue recovered and confirmed theft cases by month for the last 6 months.",
+        "sql": f"""SELECT DATE_TRUNC('month', closed_timestamp) AS month,
+  SUM(revenue_recovered_gbp) AS revenue_recovered,
+  COUNT_IF(outcome = 'THEFT_CONFIRMED') AS confirmed_cases
+FROM {CATALOG}.{SCHEMA}.investigation_cases
+WHERE closed_timestamp >= ADD_MONTHS(DATE_TRUNC('month', CURRENT_DATE()), -6)
+GROUP BY DATE_TRUNC('month', closed_timestamp)
+ORDER BY month""",
+    },
+    {
+        "question": "What is the current detection precision rate and how has it trended monthly?",
+        "sql": f"""SELECT month, precision_pct
+FROM {CATALOG}.{SCHEMA}.model_performance_log
+WHERE risk_tier = 'HIGH'
+ORDER BY month""",
+    },
+    {
+        "question": "What percentage of our estate is flagged as HIGH risk, broken down by fuel type?",
+        "sql": f"""SELECT fuel_type,
+  COUNT(*) AS high_risk_accounts,
+  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct_of_high_risk
+FROM {CATALOG}.{SCHEMA}.anomaly_scores
+WHERE risk_tier = 'HIGH'
+GROUP BY fuel_type
+ORDER BY high_risk_accounts DESC""",
+    },
+    {
+        "question": "For OPEN HIGH-risk triage: how many accounts, their average composite_risk_score, latest HIGH-tier precision_pct from model_performance_log, and YTD Avg Recovery Per Case from theft_detection_metrics",
+        "sql": f"""SELECT
+  (SELECT COUNT(*) FROM {CATALOG}.{SCHEMA}.anomaly_scores WHERE risk_tier = 'HIGH' AND investigation_status = 'OPEN') AS open_high_backlog,
+  (SELECT AVG(composite_risk_score) FROM {CATALOG}.{SCHEMA}.anomaly_scores WHERE risk_tier = 'HIGH' AND investigation_status = 'OPEN') AS avg_composite_score,
+  (SELECT precision_pct FROM {CATALOG}.{SCHEMA}.model_performance_log WHERE risk_tier = 'HIGH' ORDER BY month DESC LIMIT 1) AS latest_precision_pct""",
+    },
 ]
 
 # COMMAND ----------
@@ -134,22 +183,39 @@ def _update_space_idempotent(space_id, display_name, description, table_ids, war
         else:
             raise
 
-def _build_serialized_space():
-    """Build the serialized_space JSON string with tables, instructions, and sample questions."""
+def _data_sources():
+    """Split tables vs metric views for serialized_space."""
     tables = [{"identifier": t} for t in TABLE_IDENTIFIERS if not t.endswith("_metrics")]
     metric_views = [{"identifier": t} for t in TABLE_IDENTIFIERS if t.endswith("_metrics")]
-    data_sources = {"tables": tables}
+    ds = {"tables": tables}
     if metric_views:
-        data_sources["metric_views"] = metric_views
+        ds["metric_views"] = metric_views
+    return ds
 
+
+def _build_example_sql_entries():
+    """Build example_question_sqls entries for serialized_space."""
+    entries = []
+    for ex in EXAMPLE_QUESTION_SQLS:
+        entries.append({
+            "id": str(uuid.uuid4()).replace("-", ""),
+            "question": ex["question"],
+            "sql": ex["sql"].strip(),
+        })
+    return entries
+
+
+def _build_serialized_space():
+    """Build the serialized_space JSON string with tables, instructions, and sample questions."""
     instruction_lines = [line + "\n" for line in INSTRUCTIONS.split("\n")]
     ss = {
         "version": 2,
-        "data_sources": data_sources,
+        "data_sources": _data_sources(),
         "instructions": {
             "text_instructions": [
                 {"id": str(uuid.uuid4()).replace("-", ""), "content": instruction_lines}
-            ]
+            ],
+            "example_question_sqls": _build_example_sql_entries(),
         },
     }
     return _json.dumps(ss)
@@ -198,7 +264,7 @@ if current.get("serialized_space"):
 else:
     ss = {"version": 1, "data_sources": {"tables": []}}
 
-ss["data_sources"] = {"tables": [{"identifier": t} for t in TABLE_IDENTIFIERS]}
+ss["data_sources"] = _data_sources()
 
 instruction_id = None
 if ss.get("instructions", {}).get("text_instructions"):
@@ -213,7 +279,7 @@ ss["instructions"] = {
             "content": [line + "\n" for line in INSTRUCTIONS.split("\n")],
         }
     ],
-    "example_question_sqls": [],
+    "example_question_sqls": _build_example_sql_entries(),
 }
 
 patch_body = {
@@ -234,7 +300,7 @@ except Exception as e:
     else:
         raise
 
-print(f"✓ serialized_space instructions applied ({len(INSTRUCTIONS)} chars)")
+print(f"✓ serialized_space instructions applied ({len(INSTRUCTIONS)} chars, {len(EXAMPLE_QUESTION_SQLS)} example SQL)")
 
 # COMMAND ----------
 

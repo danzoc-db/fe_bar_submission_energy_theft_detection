@@ -2210,10 +2210,9 @@ async def start_genie_conversation(request: Request):
 async def warm_genie(request: Request):
     """Pre-warm a Genie conversation so the first real question is fast.
 
-    Starts a conversation with a lightweight question, returns the
-    conversation_id the frontend should reuse for subsequent messages.
+    Starts a conversation and returns the conversation_id immediately —
+    does not wait for Genie to finish executing the warm-up query.
     """
-    import asyncio
     import httpx
 
     config = _config(request)
@@ -2227,34 +2226,21 @@ async def warm_genie(request: Request):
 
     host, headers, fallback_headers = auth
     try:
-        async with httpx.AsyncClient(timeout=60) as http:
+        async with httpx.AsyncClient(timeout=30) as http:
             resp = await http.post(
                 f"{host}/api/2.0/genie/spaces/{genie_space_id}/start-conversation",
-                json={"content": "How many accounts are in the system?"},
+                json={"content": "hello"},
                 headers=headers,
             )
             if resp.status_code == 403 and fallback_headers:
                 headers = fallback_headers
                 resp = await http.post(
                     f"{host}/api/2.0/genie/spaces/{genie_space_id}/start-conversation",
-                    json={"content": "How many accounts are in the system?"},
+                    json={"content": "hello"},
                     headers=headers,
                 )
             if resp.status_code == 200:
-                data = resp.json()
-                conv_id = data.get("conversation_id")
-                msg_id = data.get("message_id")
-                if conv_id and msg_id:
-                    for _ in range(20):
-                        await asyncio.sleep(0.5)
-                        poll = await http.get(
-                            f"{host}/api/2.0/genie/spaces/{genie_space_id}/conversations/{conv_id}/messages/{msg_id}",
-                            headers=headers,
-                        )
-                        if poll.status_code == 200:
-                            status = poll.json().get("status")
-                            if status in ("COMPLETED", "FAILED", "CANCELLED"):
-                                break
+                conv_id = resp.json().get("conversation_id")
                 return GenieMessage(role="assistant", content="", conversation_id=conv_id)
     except Exception as e:
         logger.warning(f"Genie warm-up failed (non-critical): {e}")
