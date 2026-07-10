@@ -1,6 +1,6 @@
 # Databricks Workspace Setup
 
-Configuration required in the `azure-field-demos` workspace before the app can run.
+Configuration required in your Databricks workspace before the app can run.
 
 ---
 
@@ -9,8 +9,8 @@ Configuration required in the `azure-field-demos` workspace before the app can r
 ### Catalog and Schema
 
 ```sql
-CREATE CATALOG IF NOT EXISTS dz_demos;
-CREATE SCHEMA IF NOT EXISTS dz_demos.energy_theft_protection;
+CREATE CATALOG IF NOT EXISTS <your_catalog>;
+CREATE SCHEMA IF NOT EXISTS <your_catalog>.energy_theft_protection;
 ```
 
 ### Delta Tables
@@ -38,7 +38,7 @@ Two UC Metric Views as defined in `docs/PRD.md` Section 7:
 | Name | `energy-theft-demo-warehouse` (or shared existing) |
 | Type | Serverless |
 | Size | Small (auto-scaling) |
-| Catalog default | `dz_demos` |
+| Catalog default | `<your_catalog>` |
 | Schema default | `energy_theft_protection` |
 
 Store the warehouse ID in `.env` as `SQL_WAREHOUSE_ID`.
@@ -70,8 +70,8 @@ The AI Gateway provides:
 
 | Model Name | Version | Type |
 |------------|---------|------|
-| `dz_demos.energy_theft_protection.isolation_forest_theft` | v3 | sklearn IsolationForest |
-| `dz_demos.energy_theft_protection.lstm_consumption` | v2 | keras LSTM Autoencoder |
+| `<your_catalog>.energy_theft_protection.isolation_forest_theft` | v3 | sklearn IsolationForest |
+| `<your_catalog>.energy_theft_protection.lstm_consumption` | v2 | keras LSTM Autoencoder |
 
 Models are registered with MLflow experiment tracking showing training runs,
 hyperparameters, and model cards. For the demo, models are simulated — scores are
@@ -106,7 +106,7 @@ pre-computed in `anomaly_scores`.
 ## 7. Environment Variables (`.env`)
 
 ```bash
-DATABRICKS_CONFIG_PROFILE=azure-field-demos
+DATABRICKS_CONFIG_PROFILE=<your-profile>
 SQL_WAREHOUSE_ID=<warehouse-id>
 AI_GATEWAY_ENDPOINT=energy-theft-bedrock-gateway
 GENIE_SPACE_ID=<genie-space-id>

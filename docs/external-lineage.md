@@ -126,13 +126,13 @@ UPSTREAM relationship per edge using the SDK's
 ```bash
 # One-shot: register the four PBIs + 23 column edges in your UC metastore
 databricks bundle run end_to_end \
-    --target zoccali-fevm \
-    --profile zoccali-fevm
+    --target <your-target> \
+    --profile <your-profile>
 
 # Or just the bootstrap task once the bundle is deployed
 databricks bundle run end_to_end \
-    --target zoccali-fevm \
-    --profile zoccali-fevm \
+    --target <your-target> \
+    --profile <your-profile> \
     --only-tasks configure_external_lineage
 ```
 
@@ -140,9 +140,9 @@ Then verify either via Catalog Explorer (Lineage tab on any of the four
 upstream tables) or via the app:
 
 ```bash
-TOKEN=$(databricks --profile zoccali-fevm auth token | jq -r .access_token)
+TOKEN=$(databricks --profile <your-profile> auth token | jq -r .access_token)
 curl -sS -H "Authorization: Bearer $TOKEN" \
-    "https://energy-theft-detection-7405608897564064.4.azure.databricksapps.com/api/governance/external-lineage" \
+    "https://<your-app>.databricksapps.com/api/governance/external-lineage" \
     | jq '{ source, n_nodes: (.nodes | length), n_edges: (.edges | length) }'
 ```
 
@@ -196,9 +196,9 @@ open you'll be prompted to fill the four M parameters:
 
 | Parameter | Example |
 |---|---|
-| `workspace_host` | `https://adb-7405608897564064.4.azuredatabricks.net` |
-| `http_path` | `/sql/1.0/warehouses/a1749b760390eed6` |
-| `catalog_name` | `zoccali_fevm` |
+| `workspace_host` | `https://adb-<workspace-id>.<cloud>.databricks.net` |
+| `http_path` | `/sql/1.0/warehouses/<warehouse-id>` |
+| `catalog_name` | `demo_catalog` |
 | `schema_name` | `energy_theft_protection` |
 
 Authentication uses the standard Databricks Power BI connector

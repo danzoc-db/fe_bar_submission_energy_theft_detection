@@ -4,11 +4,13 @@ These tests verify the live application end-to-end including SQL Warehouse
 connectivity, Delta table reads/writes, and response latency.
 
 Usage:
+    APP_URL=https://<your-app>.databricksapps.com \\
+    DATABRICKS_PROFILE=<your-profile> \\
     pytest tests/test_remote_integration.py -v
 
 Requires:
-    - `azsu-centrica-demo` Databricks CLI profile configured
-    - The app deployed and running at the expected URL
+    - APP_URL and DATABRICKS_PROFILE environment variables
+    - The app deployed and running at APP_URL
 """
 
 import os
@@ -19,12 +21,23 @@ import pytest
 import requests
 from databricks.sdk import WorkspaceClient
 
-APP_URL = os.environ.get(
-    "APP_URL",
-    "https://energy-theft-detection-7405616473758737.17.azure.databricksapps.com",
-)
-PROFILE = os.environ.get("DATABRICKS_PROFILE", "azsu-centrica-demo")
+APP_URL = os.environ.get("APP_URL", "")
+PROFILE = os.environ.get("DATABRICKS_PROFILE", "")
 LATENCY_BUDGET_S = 15
+
+
+def pytest_configure(config):
+    if not APP_URL or not PROFILE:
+        config.addinivalue_line(
+            "markers",
+            "skip_remote_integration: APP_URL and DATABRICKS_PROFILE must be set",
+        )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _require_remote_env():
+    if not APP_URL or not PROFILE:
+        pytest.skip("APP_URL and DATABRICKS_PROFILE environment variables are required")
 
 
 @pytest.fixture(scope="session")

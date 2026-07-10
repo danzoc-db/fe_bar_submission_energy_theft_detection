@@ -1,19 +1,21 @@
-"""Grant a workspace user broad access to the energy-theft-detection demo (azsu-centrica-demo).
+"""Grant a workspace user broad access to the energy-theft-detection demo.
 
 Applies:
   - Databricks App: CAN_MANAGE on ``energy-theft-detection``
-  - SQL warehouse (from app resources): CAN_MANAGE
+  - SQL warehouse (from app resources or --warehouse-id): CAN_MANAGE
   - Model serving / AI Gateway endpoints (by name): CAN_MANAGE (uses endpoint id for Permissions API)
-  - Genie Space (from app resources): CAN_MANAGE
+  - Genie Space (from app resources or --genie-space-id): CAN_MANAGE
   - Unity Catalog: USE CATALOG + ALL PRIVILEGES ON SCHEMA (demo schema)
 
 Requires an admin-capable principal in ``databricks auth`` / CLI profile.
 
 Usage:
-  python3 scripts/grant_user_demo_access.py --profile azsu-centrica-demo --user nishant.dixit@databricks.com --apply
+  python3 scripts/grant_user_demo_access.py \\
+    --profile <your-profile> --catalog <your_catalog> --user user@example.com --apply
 
   # Preview only (no API writes):
-  python3 scripts/grant_user_demo_access.py --profile azsu-centrica-demo --user nishant.dixit@databricks.com
+  python3 scripts/grant_user_demo_access.py \\
+    --profile <your-profile> --catalog <your_catalog> --user user@example.com
 """
 
 from __future__ import annotations
@@ -26,18 +28,13 @@ from databricks.sdk.service.apps import AppAccessControlRequest, AppPermissionLe
 from databricks.sdk.service.iam import AccessControlRequest, PermissionLevel
 
 APP_NAME = "energy-theft-detection"
-
-# Fallback when app resources are missing (matches databricks.yml azsu target).
-AZSU_DEFAULTS = {
-    "catalog": "azsu_centrica_demo",
-    "schema": "energy_theft_protection",
-    "serving_endpoint_names": [
-        "energy-theft-bedrock-gateway",
-        "energy-theft-gemini-gateway",
-        "energy-theft-openai-gateway",
-        "energy-theft-llama-gateway",
-    ],
-}
+DEFAULT_SCHEMA = "energy_theft_protection"
+DEFAULT_SERVING_ENDPOINT_NAMES = [
+    "energy-theft-bedrock-gateway",
+    "energy-theft-gemini-gateway",
+    "energy-theft-openai-gateway",
+    "energy-theft-llama-gateway",
+]
 
 
 def _user_principal(user: str) -> str:
@@ -137,7 +134,6 @@ def _grant_uc_schema(w: WorkspaceClient, user: str, warehouse_id: str, catalog: 
                 print("     OK")
             except Exception as e:
                 print(f"     ERROR: {e}")
-                # Fallback: common demo privileges if ALL PRIVILEGES is not supported
                 if "ALL PRIVILEGES" in stmt.upper():
                     fb = (
                         f"GRANT USE SCHEMA, SELECT, MODIFY, CREATE TABLE, CREATE FUNCTION, "
@@ -154,8 +150,12 @@ def _grant_uc_schema(w: WorkspaceClient, user: str, warehouse_id: str, catalog: 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Grant demo app + data access to a user")
-    parser.add_argument("--profile", default="azsu-centrica-demo", help="Databricks CLI profile")
+    parser.add_argument("--profile", required=True, help="Databricks CLI profile")
+    parser.add_argument("--catalog", required=True, help="Unity Catalog name for the demo")
+    parser.add_argument("--schema", default=DEFAULT_SCHEMA, help="Unity Catalog schema (default: energy_theft_protection)")
     parser.add_argument("--user", required=True, help="Databricks user name (email)")
+    parser.add_argument("--warehouse-id", default="", help="SQL warehouse ID fallback if not bound on the app")
+    parser.add_argument("--genie-space-id", default="", help="Genie space ID fallback if not bound on the app")
     parser.add_argument(
         "--apply",
         action="store_true",
@@ -164,32 +164,38 @@ def main() -> None:
     args = parser.parse_args()
     user = _user_principal(args.user)
 
-    catalog = AZSU_DEFAULTS["catalog"]
-    schema = AZSU_DEFAULTS["schema"]
-    warehouse_id_fb = "16de76f2a615a8aa"
-    genie_space_id_fb = "01f137845bff15e1a08bb2ee463075b5"
-    serving_names = list(AZSU_DEFAULTS["serving_endpoint_names"])
+    catalog = args.catalog
+    schema = args.schema
+    warehouse_id_fb = args.warehouse_id
+    genie_space_id_fb = args.genie_space_id
+    serving_names = list(DEFAULT_SERVING_ENDPOINT_NAMES)
 
     if not args.apply:
-        print("Dry run (no API calls). Profile:", args.profile or "(default)")
+        print("Dry run (no API calls). Profile:", args.profile)
+        print("Catalog:", catalog)
         print("User:", user)
         print("\nPlanned grants:")
         print(f"  - App {APP_NAME}: CAN_MANAGE")
-        print(f"  - Warehouse (from app, else {warehouse_id_fb}): CAN_MANAGE")
+        wh_label = warehouse_id_fb or "(from app resources)"
+        print(f"  - Warehouse {wh_label}: CAN_MANAGE")
         for n in serving_names:
             print(f"  - Serving endpoint {n}: CAN_MANAGE")
-        print(f"  - Genie space (from app, else {genie_space_id_fb}): CAN_MANAGE")
+        genie_label = genie_space_id_fb or "(from app resources)"
+        print(f"  - Genie space {genie_label}: CAN_MANAGE")
         print(f"  - UC catalog `{catalog}`: USE CATALOG")
         print(f"  - UC schema `{catalog}.{schema}`: ALL PRIVILEGES (or schema privilege fallback)")
-        print(f"\nRun with auth:\n  databricks auth login --host <azsu-workspace-host>\n  python3 scripts/grant_user_demo_access.py --profile {args.profile} --user {user} --apply")
+        print(
+            f"\nRun with auth:\n  databricks auth login --host <your-workspace-host>\n"
+            f"  python3 scripts/grant_user_demo_access.py --profile {args.profile} "
+            f"--catalog {catalog} --user {user} --apply"
+        )
         sys.exit(0)
 
-    kwargs = {"profile": args.profile} if args.profile else {}
-    w = WorkspaceClient(**kwargs)
+    w = WorkspaceClient(profile=args.profile)
     print(f"Workspace: {w.config.host}\nUser: {user}\n")
 
-    warehouse_id = ""
-    genie_space_id = ""
+    warehouse_id = warehouse_id_fb
+    genie_space_id = genie_space_id_fb
     try:
         app = w.apps.get(APP_NAME)
         for r in app.resources or []:
@@ -199,12 +205,7 @@ def main() -> None:
                 genie_space_id = r.genie_space.space_id or genie_space_id
     except Exception as e:
         print(f"WARN: could not load app '{APP_NAME}': {e}")
-        print("      Using databricks.yml azsu fallbacks for warehouse / genie where possible.")
-
-    if not warehouse_id:
-        warehouse_id = warehouse_id_fb
-    if not genie_space_id:
-        genie_space_id = genie_space_id_fb
+        print("      Using --warehouse-id / --genie-space-id fallbacks where provided.")
 
     _grant_app(w, user, True)
     _grant_warehouse(w, user, warehouse_id, True)

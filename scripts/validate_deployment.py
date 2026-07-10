@@ -6,7 +6,7 @@ are functional. Designed to be run from CI or locally.
 
 Usage:
     python3 scripts/validate_deployment.py --profile <CLI_PROFILE> --target <BUNDLE_TARGET>
-    python3 scripts/validate_deployment.py --profile azsu-centrica-demo --target azsu
+    python3 scripts/validate_deployment.py --profile <your-profile> --target <your-target>
     python3 scripts/validate_deployment.py --app-url https://energy-theft-detection-....databricksapps.com
 """
 
@@ -28,7 +28,6 @@ LLAMA_ENDPOINT = "energy-theft-llama-gateway"
 
 BUNDLE_TARGETS = {
     "dev": {"catalog": "dz_demos", "profile": "DEFAULT"},
-    "azsu": {"catalog": "azsu_centrica_demo", "profile": "azsu-centrica-demo"},
     "azure-field-demo": {"catalog": "dz_demos", "profile": "azure-field-demo"},
     "zoccali-fevm-aws": {"catalog": "zoccali_fevm", "profile": "zoccali-fevm-aws"},
 }
