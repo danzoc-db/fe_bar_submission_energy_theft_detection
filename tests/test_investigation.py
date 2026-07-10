@@ -124,3 +124,34 @@ class TestLLMCaseSummary:
             assert field in data, f"Missing field: {field}"
         assert isinstance(data["key_signals"], list)
         assert len(data["key_signals"]) > 0
+
+    def test_case_summary_skip_sql_accepts_context(self, client):
+        """MUST: skip_sql=true uses query params instead of anomaly_scores SQL."""
+        r = client.get(
+            "/api/llm/case-summary/BG-0000001"
+            "?skip_sql=true&risk_level=HIGH&consumption_drop_pct=42.5"
+            "&composite_risk_score=0.91&comms_gap_count_30d=7"
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["risk_level"] == "HIGH"
+        assert any("42.5%" in s for s in data["key_signals"])
+        assert any("7 communication" in s for s in data["key_signals"])
+
+
+class TestAccountDetailSQL:
+    """Unit tests for account detail SQL helpers."""
+
+    def test_account_detail_sql_gold_contains_gold_table(self):
+        from energy_theft_detection.backend.router import _account_detail_sql
+
+        sql = _account_detail_sql("UKI-0000001", use_gold=True)
+        assert "gold_daily_consumption" in sql
+        assert "smart_meter_reads" not in sql
+
+    def test_account_detail_sql_bronze_fallback(self):
+        from energy_theft_detection.backend.router import _account_detail_sql
+
+        sql = _account_detail_sql("UKI-0000001", use_gold=False)
+        assert "smart_meter_reads" in sql
+        assert "gold_daily_consumption" not in sql

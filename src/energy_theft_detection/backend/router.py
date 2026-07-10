@@ -16,7 +16,8 @@ import json as _json
 import time as _time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+import httpx
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from .._metadata import api_prefix
@@ -1101,8 +1102,8 @@ Priorities: Triage newest HIGH flags first, chase any case open > 5 days, invest
 
 Respond ONLY with the JSON object. No markdown, no code fences, no extra text."""
 
-            with httpx.Client(timeout=30) as http:
-                resp = http.post(
+            async with httpx.AsyncClient(timeout=30) as http:
+                resp = await http.post(
                     f"{host}/serving-endpoints/{ai_endpoint}/invocations",
                     json={
                         "messages": [{"role": "user", "content": prompt}],
@@ -1244,26 +1245,92 @@ async def list_flagged_accounts(
     return []
 
 
-@api.get(
-    "/investigation/accounts/{account_id}",
-    response_model=AccountDetail,
-    operation_id="getAccountDetail",
-)
-async def get_account_detail(request: Request, account_id: str):
-    """Full account detail with anomaly signals.
+_gold_daily_ok: bool | None = None
 
-    Optimised: the main account query now includes score_timestamp, and
-    the meter-reads + cohort-reads queries run in parallel via ThreadPool
-    to cut latency from 4 sequential round-trips to 1 + 1 parallel pair.
-    """
-    cache_key = f"account_detail:{account_id}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return cached
 
-    db = _sql(request)
-    if db:
-        rows = db.execute(f"""
+def _gold_daily_available(db: SQLClient) -> bool:
+    """Probe gold_daily_consumption once per process; fall back to bronze if missing."""
+    global _gold_daily_ok
+    if _gold_daily_ok is not None:
+        return _gold_daily_ok
+    try:
+        db.execute("SELECT 1 FROM gold_daily_consumption LIMIT 1")
+        _gold_daily_ok = True
+    except Exception:
+        _gold_daily_ok = False
+    return _gold_daily_ok
+
+
+def _parse_struct_array(raw: Any) -> list[dict[str, Any]]:
+    """Parse COLLECT_LIST(NAMED_STRUCT(...)) results from the SQL warehouse."""
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        try:
+            raw = _json.loads(raw)
+        except _json.JSONDecodeError:
+            return []
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            out.append(item)
+        elif isinstance(item, str):
+            try:
+                out.append(_json.loads(item))
+            except _json.JSONDecodeError:
+                pass
+    return out
+
+
+def _account_detail_sql(account_id: str, *, use_gold: bool) -> str:
+    """Single-round-trip account detail: metadata + meter series + cohort series."""
+    if use_gold:
+        meter_cte = """
+        meter AS (
+            SELECT read_date AS day, daily_kwh AS avg_kwh, 'actual' AS read_quality
+            FROM gold_daily_consumption
+            WHERE account_id = '{account_id}'
+              AND fuel_type = (SELECT fuel_type FROM acct)
+              AND read_date >= CURRENT_DATE() - INTERVAL 90 DAY
+        )""".format(account_id=account_id)
+        cohort_cte = """
+        cohort AS (
+            SELECT g.read_date AS day, AVG(g.daily_kwh) AS avg_kwh
+            FROM gold_daily_consumption g
+            JOIN property_reference pr ON g.account_id = pr.account_id
+            WHERE pr.postcode = (SELECT postcode FROM acct)
+              AND g.fuel_type = (SELECT fuel_type FROM acct)
+              AND g.account_id != '{account_id}'
+              AND g.read_date >= CURRENT_DATE() - INTERVAL 90 DAY
+            GROUP BY g.read_date
+        )""".format(account_id=account_id)
+    else:
+        meter_cte = """
+        meter AS (
+            SELECT DATE(read_timestamp) AS day,
+                   AVG(consumption_kwh) AS avg_kwh,
+                   MAX(read_quality) AS read_quality
+            FROM smart_meter_reads
+            WHERE account_id = '{account_id}'
+              AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
+            GROUP BY DATE(read_timestamp)
+        )""".format(account_id=account_id)
+        cohort_cte = """
+        cohort AS (
+            SELECT DATE(read_timestamp) AS day,
+                   AVG(consumption_kwh) AS avg_kwh
+            FROM smart_meter_reads
+            WHERE postcode = (SELECT postcode FROM acct)
+              AND fuel_type = (SELECT fuel_type FROM acct)
+              AND account_id != '{account_id}'
+              AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
+            GROUP BY DATE(read_timestamp)
+        )""".format(account_id=account_id)
+
+    return f"""
+        WITH acct AS (
             SELECT
               a.account_id, pr.postcode, pr.region, pr.property_type,
               pr.council_tax_band, a.fuel_type, a.risk_tier,
@@ -1275,88 +1342,103 @@ async def get_account_detail(request: Request, account_id: str):
             JOIN property_reference pr ON a.account_id = pr.account_id
             WHERE a.account_id = '{account_id}'
             LIMIT 1
-        """)
+        ),
+        {meter_cte},
+        {cohort_cte}
+        SELECT
+          acct.*,
+          COALESCE(
+            (SELECT COLLECT_LIST(NAMED_STRUCT('day', day, 'avg_kwh', avg_kwh, 'read_quality', read_quality))
+             FROM meter),
+            ARRAY()
+          ) AS meter_data,
+          COALESCE(
+            (SELECT COLLECT_LIST(NAMED_STRUCT('day', day, 'avg_kwh', avg_kwh)) FROM cohort),
+            ARRAY()
+          ) AS cohort_data
+        FROM acct
+    """
+
+
+def _account_detail_from_row(r: dict[str, Any]) -> AccountDetail:
+    """Build AccountDetail from a combined SQL row with embedded series arrays."""
+    iso = float(r["isolation_forest_score"])
+    lstm = float(r["lstm_deviation_score"])
+    cohort = float(r["cohort_deviation_score"])
+    gaps = int(float(r["comms_gap_count_30d"]))
+    drop = min(100.0, max(0.0, float(r["consumption_drop_pct"])))
+    fuel = r["fuel_type"]
+
+    meter_reads = [
+        MeterReadPoint(
+            read_timestamp=mr["day"],
+            consumption_kwh=float(mr["avg_kwh"]),
+            read_quality=mr.get("read_quality") or "actual",
+        )
+        for mr in _parse_struct_array(r.get("meter_data"))
+    ]
+    cohort_avg_reads = [
+        MeterReadPoint(
+            read_timestamp=cr["day"],
+            consumption_kwh=float(cr["avg_kwh"]),
+            read_quality="actual",
+        )
+        for cr in _parse_struct_array(r.get("cohort_data"))
+    ]
+
+    return AccountDetail(
+        account_id=r["account_id"],
+        postcode=r["postcode"],
+        region=r["region"],
+        property_type=r["property_type"],
+        council_tax_band=r["council_tax_band"],
+        fuel_type=FuelType(fuel),
+        risk_tier=RiskTier(r["risk_tier"]),
+        composite_risk_score=float(r["composite_risk_score"]),
+        consumption_drop_pct=drop,
+        comms_gap_count_30d=gaps,
+        signals=AnomalySignals(
+            isolation_forest_score=iso,
+            lstm_deviation_score=min(1.0, max(0.0, lstm / 4.0)),
+            cohort_deviation_score=min(1.0, abs(cohort) / 3.5),
+            comms_gap_normalised=min(1.0, gaps / 20.0),
+            consumption_drop_normalised=min(1.0, max(0.0, drop / 70.0)),
+        ),
+        meter_reads=meter_reads,
+        cohort_avg_reads=cohort_avg_reads,
+        anomaly_onset=r.get("score_timestamp"),
+    )
+
+
+@api.get(
+    "/investigation/accounts/{account_id}",
+    response_model=AccountDetail,
+    operation_id="getAccountDetail",
+)
+async def get_account_detail(request: Request, account_id: str):
+    """Full account detail with anomaly signals.
+
+    Optimised: single SQL round-trip via CTEs; prefers gold_daily_consumption
+    for meter + cohort series, with bronze smart_meter_reads fallback.
+    """
+    cache_key = f"account_detail:{account_id}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    db = _sql(request)
+    if db:
+        use_gold = _gold_daily_available(db)
+        try:
+            rows = db.execute(_account_detail_sql(account_id, use_gold=use_gold))
+        except Exception as e:
+            if use_gold:
+                logger.warning(f"gold_daily_consumption query failed, falling back to bronze: {e}")
+                rows = db.execute(_account_detail_sql(account_id, use_gold=False))
+            else:
+                raise
         if rows:
-            r = rows[0]
-            iso = float(r["isolation_forest_score"])
-            lstm = float(r["lstm_deviation_score"])
-            cohort = float(r["cohort_deviation_score"])
-            gaps = int(float(r["comms_gap_count_30d"]))
-            drop = min(100.0, max(0.0, float(r["consumption_drop_pct"])))
-            fuel = r["fuel_type"]
-            postcode_sector = r["postcode"]
-            anomaly_onset = r.get("score_timestamp")
-
-            from concurrent.futures import ThreadPoolExecutor
-
-            meter_sql = f"""
-                SELECT DATE(read_timestamp) AS day,
-                       AVG(consumption_kwh) AS avg_kwh,
-                       MAX(read_quality) AS read_quality
-                FROM smart_meter_reads
-                WHERE account_id = '{account_id}'
-                  AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
-                GROUP BY DATE(read_timestamp)
-                ORDER BY day
-            """
-            cohort_sql = f"""
-                SELECT DATE(read_timestamp) AS day,
-                       AVG(consumption_kwh) AS avg_kwh
-                FROM smart_meter_reads
-                WHERE postcode = '{postcode_sector}'
-                  AND fuel_type = '{fuel}'
-                  AND account_id != '{account_id}'
-                  AND read_timestamp >= CURRENT_DATE() - INTERVAL 90 DAY
-                GROUP BY DATE(read_timestamp)
-                ORDER BY day
-            """
-
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                fut_meter = pool.submit(db.execute, meter_sql)
-                fut_cohort = pool.submit(db.execute, cohort_sql)
-                meter_rows = fut_meter.result(timeout=30) or []
-                cohort_rows = fut_cohort.result(timeout=30) or []
-
-            meter_reads = [
-                MeterReadPoint(
-                    read_timestamp=mr["day"],
-                    consumption_kwh=float(mr["avg_kwh"]),
-                    read_quality=mr["read_quality"] or "actual",
-                )
-                for mr in meter_rows
-            ]
-
-            cohort_avg_reads = [
-                MeterReadPoint(
-                    read_timestamp=cr["day"],
-                    consumption_kwh=float(cr["avg_kwh"]),
-                    read_quality="actual",
-                )
-                for cr in cohort_rows
-            ]
-
-            detail_result = AccountDetail(
-                account_id=r["account_id"],
-                postcode=r["postcode"],
-                region=r["region"],
-                property_type=r["property_type"],
-                council_tax_band=r["council_tax_band"],
-                fuel_type=FuelType(fuel),
-                risk_tier=RiskTier(r["risk_tier"]),
-                composite_risk_score=float(r["composite_risk_score"]),
-                consumption_drop_pct=drop,
-                comms_gap_count_30d=gaps,
-                signals=AnomalySignals(
-                    isolation_forest_score=iso,
-                    lstm_deviation_score=min(1.0, max(0.0, lstm / 4.0)),
-                    cohort_deviation_score=min(1.0, abs(cohort) / 3.5),
-                    comms_gap_normalised=min(1.0, gaps / 20.0),
-                    consumption_drop_normalised=min(1.0, max(0.0, drop / 70.0)),
-                ),
-                meter_reads=meter_reads,
-                cohort_avg_reads=cohort_avg_reads,
-                anomaly_onset=anomaly_onset,
-            )
+            detail_result = _account_detail_from_row(rows[0])
             _cache_set(cache_key, detail_result)
             return detail_result
     return AccountDetail(
@@ -1405,70 +1487,102 @@ def _est_monthly_loss(drop_pct: float, score: float) -> float:
 # LLM Case Summary (Bedrock via AI Gateway)
 # ---------------------------------------------------------------------------
 
+def _case_summary_signals(
+    *,
+    drop_pct: float,
+    gaps: int,
+    isolation_forest_score: float | None = None,
+    lstm_deviation_score: float | None = None,
+) -> list[str]:
+    signals = [
+        f"{drop_pct:.1f}% consumption drop over 30 days",
+        f"{gaps} communication gaps in 30 days",
+    ]
+    if isolation_forest_score is not None:
+        signals.append(f"Isolation Forest score: {isolation_forest_score:.2f}")
+    if lstm_deviation_score is not None:
+        signals.append(f"LSTM deviation: {lstm_deviation_score:.2f}")
+    return signals
+
+
 @api.get(
     "/llm/case-summary/{account_id}",
     response_model=LLMCaseSummary,
     operation_id="getCaseSummary",
 )
-async def get_case_summary(request: Request, account_id: str):
+async def get_case_summary(
+    request: Request,
+    account_id: str,
+    skip_sql: bool = Query(False, description="Skip anomaly_scores SQL when frontend passes context"),
+    risk_level: str | None = Query(None),
+    consumption_drop_pct: float | None = Query(None),
+    composite_risk_score: float | None = Query(None),
+    comms_gap_count_30d: int | None = Query(None),
+    isolation_forest_score: float | None = Query(None),
+    lstm_deviation_score: float | None = Query(None),
+):
     """Generate LLM case summary for a flagged account via AI Gateway.
 
-    Optimised: both anomaly_scores and investigation_cases are queried in
-    parallel via ThreadPool to halve the latency.
+    Always calls the LLM live. When skip_sql=true, signal context is taken from
+    query params (e.g. flagged-accounts table row) to avoid redundant SQL.
     """
     model_key = request.headers.get("x-model-key", "openai")
-    cache_key = f"case_summary:{account_id}:{model_key}"
+    cache_key = (
+        f"case_summary:{account_id}:{model_key}:ctx:{risk_level}:{consumption_drop_pct}:"
+        f"{composite_risk_score}:{comms_gap_count_30d}"
+        if skip_sql
+        else f"case_summary:{account_id}:{model_key}"
+    )
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
     db = _sql(request)
 
-    risk_level = "HIGH"
+    risk = "HIGH"
     signals: list[str] = []
     drop_pct = 0.0
     score = 0.0
     gaps = 0
+    iso_score: float | None = None
+    lstm_score: float | None = None
 
-    stored_llm_summary = ""
-    if db:
-        from concurrent.futures import ThreadPoolExecutor
-
-        anomaly_sql = f"""
+    if skip_sql and risk_level is not None:
+        risk = risk_level
+        drop_pct = min(100.0, max(0.0, float(consumption_drop_pct or 0)))
+        score = float(composite_risk_score or 0)
+        gaps = int(comms_gap_count_30d or 0)
+        iso_score = isolation_forest_score
+        lstm_score = lstm_deviation_score
+        signals = _case_summary_signals(
+            drop_pct=drop_pct,
+            gaps=gaps,
+            isolation_forest_score=iso_score,
+            lstm_deviation_score=lstm_score,
+        )
+    elif db:
+        rows = db.execute(f"""
             SELECT composite_risk_score, consumption_drop_pct,
                    comms_gap_count_30d, risk_tier,
                    isolation_forest_score, lstm_deviation_score
             FROM anomaly_scores
             WHERE account_id = '{account_id}'
             LIMIT 1
-        """
-        case_sql = f"""
-            SELECT llm_summary FROM investigation_cases
-            WHERE account_id = '{account_id}'
-            LIMIT 1
-        """
-
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            fut_anomaly = pool.submit(db.execute, anomaly_sql)
-            fut_case = pool.submit(db.execute, case_sql)
-            rows = fut_anomaly.result(timeout=30)
-            case_rows = fut_case.result(timeout=30)
-
+        """)
         if rows:
             r = rows[0]
-            risk_level = r["risk_tier"]
+            risk = r["risk_tier"]
             drop_pct = min(100.0, max(0.0, float(r["consumption_drop_pct"])))
             score = float(r["composite_risk_score"])
             gaps = int(float(r["comms_gap_count_30d"]))
-            signals = [
-                f"{drop_pct:.1f}% consumption drop over 30 days",
-                f"{gaps} communication gaps in 30 days",
-                f"Isolation Forest score: {float(r['isolation_forest_score']):.2f}",
-                f"LSTM deviation: {float(r['lstm_deviation_score']):.2f}",
-            ]
-
-        if case_rows and case_rows[0].get("llm_summary"):
-            stored_llm_summary = str(case_rows[0]["llm_summary"])
+            iso_score = float(r["isolation_forest_score"])
+            lstm_score = float(r["lstm_deviation_score"])
+            signals = _case_summary_signals(
+                drop_pct=drop_pct,
+                gaps=gaps,
+                isolation_forest_score=iso_score,
+                lstm_deviation_score=lstm_score,
+            )
 
     llm_text = ""
     ai_endpoint = _resolve_ai_endpoint(request, _config(request))
@@ -1480,7 +1594,7 @@ async def get_case_summary(request: Request, account_id: str):
             prompt = f"""You are a UKI Gas revenue protection analyst.
 Write a concise case summary (3-5 sentences) for account {account_id} using the provided risk indicators.
 
-Risk level: {risk_level}
+Risk level: {risk}
 Composite score: {score:.2f}
 Consumption drop: {drop_pct:.1f}%
 Communication gaps (30d): {gaps}
@@ -1492,12 +1606,12 @@ Include:
 2) likely operational impact,
 3) a clear next action.
 Respond as plain text only."""
-            with httpx.Client(timeout=30) as http:
-                resp = http.post(
+            async with httpx.AsyncClient(timeout=30) as http:
+                resp = await http.post(
                     f"{host}/serving-endpoints/{ai_endpoint}/invocations",
                     json={
                         "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": 280,
+                        "max_tokens": 180,
                         "usage_context": {
                             "use_case": "robbie_case_summary",
                             "account_id": account_id,
@@ -1516,13 +1630,13 @@ Respond as plain text only."""
         except Exception as e:
             logger.warning(f"Case summary AI call failed: {type(e).__name__}: {e}")
 
-    final_text = llm_text or stored_llm_summary or f"Account {account_id} analysis pending full LLM integration."
+    final_text = llm_text or f"Account {account_id} analysis pending full LLM integration."
     cs_result = LLMCaseSummary(
         account_id=account_id,
-        risk_level=risk_level,
+        risk_level=risk,
         key_signals=signals or ["Data from anomaly scoring model"],
-        recommended_action="Dispatch field engineer for meter inspection" if risk_level == "HIGH" else "Monitor and re-score in next batch",
-        priority="URGENT" if risk_level == "HIGH" else "STANDARD",
+        recommended_action="Dispatch field engineer for meter inspection" if risk == "HIGH" else "Monitor and re-score in next batch",
+        priority="URGENT" if risk == "HIGH" else "STANDARD",
         estimated_loss_per_month_gbp=_est_monthly_loss(drop_pct, score) or 200.0,
         raw_text=final_text,
     )

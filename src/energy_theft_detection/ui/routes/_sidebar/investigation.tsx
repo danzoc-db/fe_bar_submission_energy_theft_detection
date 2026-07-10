@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { MeterReadPoint } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,7 +38,8 @@ import {
 import {
   useListFlaggedAccountsSuspense,
   useGetAccountDetailSuspense,
-  useGetCaseSummarySuspense,
+  getAccountDetail,
+  getAccountDetailKey,
   useGenerateDispatchReport,
   useGetInvestigationKPIsSuspense,
   useGetDailyBriefingSuspense,
@@ -61,6 +62,12 @@ import {
 import type { DispatchReport, RiskTier } from "@/lib/api";
 import { InvestigationStatus } from "@/lib/api";
 import selector from "@/lib/selector";
+import {
+  getCaseSummaryWithPreview,
+  getCaseSummaryWithPreviewKey,
+  withModelHeaders,
+  type AccountRowPreview,
+} from "@/lib/api-fetch";
 import {
   Info,
   ShieldCheck,
@@ -173,8 +180,14 @@ const STATUS_BADGE_STYLES: Record<StatusFilter, string> = {
 
 function InvestigationPage() {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
+  const [selectedPreview, setSelectedPreview] = useState<AccountRowPreview | undefined>();
   const [riskFilter, setRiskFilter] = useState<RiskTier | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter | null>(null);
+
+  const handleSelectAccount = (id: string, preview?: AccountRowPreview) => {
+    setSelectedAccount(id);
+    setSelectedPreview(preview);
+  };
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -301,7 +314,7 @@ function InvestigationPage() {
           <CardContent>
             <Suspense fallback={<AccountTableSkeleton />}>
               <AccountTable
-                onSelectAccount={setSelectedAccount}
+                onSelectAccount={handleSelectAccount}
                 riskFilter={riskFilter}
                 statusFilter={statusFilter}
               />
@@ -326,7 +339,12 @@ function InvestigationPage() {
         {/* Detail Drawer */}
         <Sheet
           open={selectedAccount !== null}
-          onOpenChange={(open) => !open && setSelectedAccount(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedAccount(null);
+              setSelectedPreview(undefined);
+            }
+          }}
         >
           <SheetContent className="w-[600px] sm:max-w-[600px] overflow-y-auto">
             {selectedAccount && (
@@ -339,7 +357,10 @@ function InvestigationPage() {
                   </div>
                 }
               >
-                <AccountDetailDrawer accountId={selectedAccount} />
+                <AccountDetailDrawer
+                  accountId={selectedAccount}
+                  accountPreview={selectedPreview}
+                />
               </Suspense>
             )}
           </SheetContent>
@@ -593,10 +614,11 @@ function AccountTable({
   riskFilter,
   statusFilter,
 }: {
-  onSelectAccount: (id: string) => void;
+  onSelectAccount: (id: string, preview?: AccountRowPreview) => void;
   riskFilter: RiskTier | null;
   statusFilter: StatusFilter | null;
 }) {
+  const queryClient = useQueryClient();
   const params: Record<string, string> = {};
   if (riskFilter) params.risk_tier = riskFilter;
   if (statusFilter) params.investigation_status = statusFilter;
@@ -659,12 +681,31 @@ function AccountTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {accounts.map((a) => (
-            <TableRow
-              key={a.account_id}
-              className="cursor-pointer hover:bg-muted/50"
-              onClick={() => onSelectAccount(a.account_id)}
-            >
+          {accounts.map((a) => {
+            const preview: AccountRowPreview = {
+              account_id: a.account_id,
+              risk_tier: a.risk_tier,
+              composite_risk_score: a.composite_risk_score,
+              consumption_drop_pct: a.consumption_drop_pct,
+              comms_gap_count_30d: a.comms_gap_count_30d,
+            };
+            return (
+              <TableRow
+                key={a.account_id}
+                className="cursor-pointer hover:bg-muted/50"
+                onMouseEnter={() => {
+                  queryClient.prefetchQuery({
+                    queryKey: getAccountDetailKey({ account_id: a.account_id }),
+                    queryFn: () =>
+                      getAccountDetail({ account_id: a.account_id }, withModelHeaders()),
+                  });
+                  queryClient.prefetchQuery({
+                    queryKey: getCaseSummaryWithPreviewKey(a.account_id, preview),
+                    queryFn: () => getCaseSummaryWithPreview(a.account_id, preview),
+                  });
+                }}
+                onClick={() => onSelectAccount(a.account_id, preview)}
+              >
               <TableCell className="font-mono text-sm">
                 {a.account_id}
               </TableCell>
@@ -695,8 +736,9 @@ function AccountTable({
                   {a.investigation_status.replace("_", " ")}
                 </Badge>
               </TableCell>
-            </TableRow>
-          ))}
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
@@ -707,7 +749,7 @@ function AccountTable({
 // LLM Case Summary — lazy-loaded behind its own Suspense boundary
 // ---------------------------------------------------------------------------
 
-function CaseSummarySkeleton() {
+function CaseSummarySkeleton({ preview }: { preview?: AccountRowPreview }) {
   return (
     <Card>
       <CardHeader>
@@ -723,6 +765,15 @@ function CaseSummarySkeleton() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {preview && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
+            <Badge variant="destructive">{preview.risk_tier}</Badge>
+            <span className="text-sm text-muted-foreground">
+              Score {preview.composite_risk_score.toFixed(2)} · Drop{" "}
+              {preview.consumption_drop_pct.toFixed(1)}% · {preview.comms_gap_count_30d} comms gaps
+            </span>
+          </div>
+        )}
         <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ backgroundColor: `${AWS_ORANGE}18` }}>
           <div
             className="h-full w-1/3 rounded-full animate-bedrock-progress"
@@ -740,8 +791,17 @@ function CaseSummarySkeleton() {
   );
 }
 
-function CaseSummaryCard({ accountId }: { accountId: string }) {
-  const { data: summaryWrapper } = useGetCaseSummarySuspense({ params: { account_id: accountId } });
+function CaseSummaryCard({
+  accountId,
+  accountPreview,
+}: {
+  accountId: string;
+  accountPreview?: AccountRowPreview;
+}) {
+  const { data: summaryWrapper } = useSuspenseQuery({
+    queryKey: getCaseSummaryWithPreviewKey(accountId, accountPreview),
+    queryFn: () => getCaseSummaryWithPreview(accountId, accountPreview),
+  });
   const summary = summaryWrapper.data;
 
   return (
@@ -822,23 +882,115 @@ function DrawerDetailSkeleton() {
   );
 }
 
-function AccountDetailDrawer({ accountId }: { accountId: string }) {
+function ChartSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-3 w-64 mt-1" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-48 w-full" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function AccountDetailDrawer({
+  accountId,
+  accountPreview,
+}: {
+  accountId: string;
+  accountPreview?: AccountRowPreview;
+}) {
   return (
     <>
       <SheetHeader>
         <SheetTitle className="font-mono">{accountId}</SheetTitle>
       </SheetHeader>
       <Suspense fallback={<DrawerDetailSkeleton />}>
-        <AccountDetailContent accountId={accountId} />
+        <AccountDetailSignals accountId={accountId} />
       </Suspense>
+      <div className="space-y-6 mt-6">
+        <Suspense fallback={<CaseSummarySkeleton preview={accountPreview} />}>
+          <CaseSummaryCard accountId={accountId} accountPreview={accountPreview} />
+        </Suspense>
+        <Suspense fallback={<ChartSkeleton />}>
+          <AccountDetailChartAndDispatch accountId={accountId} />
+        </Suspense>
+      </div>
     </>
   );
 }
 
-function AccountDetailContent({ accountId }: { accountId: string }) {
+function AccountDetailSignals({ accountId }: { accountId: string }) {
   const { data: detailWrapper } = useGetAccountDetailSuspense({ params: { account_id: accountId } });
   const detail = detailWrapper.data;
   const signals = detail.signals;
+
+  return (
+    <>
+      <div className="flex gap-2 items-center mt-2">
+        <Badge variant="destructive">{detail.risk_tier}</Badge>
+        <span className="text-sm text-muted-foreground">
+          {detail.postcode} · {detail.region} · {detail.property_type} ·
+          Band {detail.council_tax_band}
+        </span>
+      </div>
+
+      <div className="space-y-6 mt-6">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">
+                Composite Risk Score
+              </span>
+              <span className="text-3xl font-bold text-red-600">
+                {detail.composite_risk_score.toFixed(2)}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-muted mt-2 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-red-500"
+                style={{ width: `${detail.composite_risk_score * 100}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-base">Signal Breakdown</CardTitle>
+                <MLflowHood />
+              </div>
+              <Link to="/governance" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
+                <ShieldCheck className="h-3 w-3" /> AI Governance
+              </Link>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Each signal is produced by a registered ML model or rule-based scorer.
+              Click the info icon for details, or view all models in{" "}
+              <Link to="/governance" className="text-accent hover:underline">AI Governance</Link>.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <SignalBar signalKey="isolation_forest" value={signals.isolation_forest_score} />
+            <SignalBar signalKey="lstm_deviation" value={signals.lstm_deviation_score} />
+            <SignalBar signalKey="cohort_deviation" value={signals.cohort_deviation_score} />
+            <SignalBar signalKey="comms_gap" value={signals.comms_gap_normalised} />
+            <SignalBar signalKey="consumption_drop" value={signals.consumption_drop_normalised} />
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function AccountDetailChartAndDispatch({ accountId }: { accountId: string }) {
+  const { data: detailWrapper } = useGetAccountDetailSuspense({ params: { account_id: accountId } });
+  const detail = detailWrapper.data;
   const { modelConfig } = useDemoSettings();
 
   const [dispatch, setDispatch] = useState<DispatchReport | null>(null);
@@ -906,85 +1058,23 @@ function AccountDetailContent({ accountId }: { accountId: string }) {
 
   return (
     <>
-      <div className="flex gap-2 items-center mt-2">
-        <Badge variant="destructive">{detail.risk_tier}</Badge>
-        <span className="text-sm text-muted-foreground">
-          {detail.postcode} · {detail.region} · {detail.property_type} ·
-          Band {detail.council_tax_band}
-        </span>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">90-Day Consumption Profile</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Daily average kWh — account vs postcode-sector cohort
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ConsumptionChart
+            meterReads={detail.meter_reads}
+            cohortReads={detail.cohort_avg_reads}
+            anomalyOnset={detail.anomaly_onset ?? null}
+          />
+        </CardContent>
+      </Card>
 
-      <div className="space-y-6 mt-6">
-        {/* Composite Score */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">
-                Composite Risk Score
-              </span>
-              <span className="text-3xl font-bold text-red-600">
-                {detail.composite_risk_score.toFixed(2)}
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-muted mt-2 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-red-500"
-                style={{ width: `${detail.composite_risk_score * 100}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Signal Breakdown */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-base">Signal Breakdown</CardTitle>
-                <MLflowHood />
-              </div>
-              <Link to="/governance" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
-                <ShieldCheck className="h-3 w-3" /> AI Governance
-              </Link>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Each signal is produced by a registered ML model or rule-based scorer.
-              Click the info icon for details, or view all models in{" "}
-              <Link to="/governance" className="text-accent hover:underline">AI Governance</Link>.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <SignalBar signalKey="isolation_forest" value={signals.isolation_forest_score} />
-            <SignalBar signalKey="lstm_deviation" value={signals.lstm_deviation_score} />
-            <SignalBar signalKey="cohort_deviation" value={signals.cohort_deviation_score} />
-            <SignalBar signalKey="comms_gap" value={signals.comms_gap_normalised} />
-            <SignalBar signalKey="consumption_drop" value={signals.consumption_drop_normalised} />
-          </CardContent>
-        </Card>
-
-        {/* LLM Case Summary — loads independently so the rest of the panel is instant */}
-        <Suspense fallback={<CaseSummarySkeleton />}>
-          <CaseSummaryCard accountId={accountId} />
-        </Suspense>
-
-        {/* 90-Day Consumption Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">90-Day Consumption Profile</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Daily average kWh — account vs postcode-sector cohort
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ConsumptionChart
-              meterReads={detail.meter_reads}
-              cohortReads={detail.cohort_avg_reads}
-              anomalyOnset={detail.anomaly_onset ?? null}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Field Dispatch */}
+      {/* Field Dispatch */}
         {!dispatch ? (
           <Button
             className="w-full"
@@ -1141,7 +1231,6 @@ function AccountDetailContent({ accountId }: { accountId: string }) {
 
         {/* Close Investigation */}
         <CloseInvestigationSection accountId={accountId} />
-      </div>
     </>
   );
 }

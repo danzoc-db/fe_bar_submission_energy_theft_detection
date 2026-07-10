@@ -160,6 +160,38 @@ class TestRemoteFlaggedAccounts:
             assert "signals" in data
             assert "meter_reads" in data
 
+    def test_account_detail_latency_budget(self, api):
+        """Account detail cold path should complete within 2.0s."""
+        accounts = api.get("/api/investigation/accounts?limit=1").json()
+        if not accounts:
+            pytest.skip("No flagged accounts available")
+        acct_id = accounts[0]["account_id"]
+        t0 = time.monotonic()
+        r = api.get(f"/api/investigation/accounts/{acct_id}")
+        elapsed = time.monotonic() - t0
+        assert r.status_code == 200
+        assert elapsed < 2.0, f"Account detail took {elapsed:.2f}s (budget: 2.0s)"
+
+    def test_case_summary_latency_budget(self, api):
+        """Live LLM case summary cold path should complete within 4.0s."""
+        accounts = api.get("/api/investigation/accounts?limit=1").json()
+        if not accounts:
+            pytest.skip("No flagged accounts available")
+        acct = accounts[0]
+        acct_id = acct["account_id"]
+        path = (
+            f"/api/llm/case-summary/{acct_id}"
+            f"?skip_sql=true&risk_level={acct.get('risk_tier', 'HIGH')}"
+            f"&consumption_drop_pct={acct.get('consumption_drop_pct', 0)}"
+            f"&composite_risk_score={acct.get('composite_risk_score', 0)}"
+            f"&comms_gap_count_30d={acct.get('comms_gap_count_30d', 0)}"
+        )
+        t0 = time.monotonic()
+        r = api.get(path)
+        elapsed = time.monotonic() - t0
+        assert r.status_code == 200
+        assert elapsed < 4.0, f"Case summary took {elapsed:.2f}s (budget: 4.0s)"
+
 
 class TestRemoteGovernance:
     """AI Governance page reads from live data."""
