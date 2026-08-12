@@ -1,10 +1,37 @@
 # UKI Gas Energy Theft Detection
 
-AI-driven anomaly detection for UK energy retailers — built on Databricks APX (FastAPI + React).
+AI-driven anomaly detection for UK energy retailers - built on Databricks APX (FastAPI + React).
 
-Energy theft costs Great Britain an estimated **£830m–£1.4bn per year**, adding £29–48 to every honest household's bill. UK suppliers detect only ~40% of expected cases against regulatory targets. This demo shows how Databricks unifies ML scoring, investigator workflows, Genie natural-language queries, and AI governance in a single deployable application — helping revenue protection teams recover stolen value faster and with full auditability.
+Energy theft costs Great Britain an estimated GBP 830m-1.4bn per year, adding GBP 29-48 to every honest household's bill. UK suppliers detect only ~40% of expected cases against regulatory targets. This demo shows how Databricks unifies ML scoring, investigator workflows, Genie natural-language queries, and AI governance in a single deployable application - helping revenue protection teams recover stolen value faster and with full auditability.
+
+![Hero - Energy Theft Detection Dashboard](assets/hero-screenshot.png)
+
+![Architecture - Databricks Data Intelligence Platform](assets/architecture-screenshot.png)
+
+**[Watch the full demo video](https://www.databricks.com/resources/demos/videos/detect-energy-theft-faster-genie)** - See the application in action with Genie natural-language queries, ML scoring, and investigator workflows.
 
 See `docs/PRD.md` for the full product requirements document.
+
+## Team Information
+
+| Role | Name | GitHub |
+|------|------|--------|
+| Owner | Daniel Zoccali | @daniel-zoccali_data |
+
+## Repository Structure
+
+```
+.
+|-- src/energy_theft_detection/
+|   |-- backend/          # FastAPI backend
+|   |-- ui/               # React frontend
+|-- notebooks/            # Databricks notebooks (medallion, ML, Genie)
+|-- pipelines/            # Declarative SQL pipelines
+|-- scripts/              # Deployment and utility scripts
+|-- tests/                # pytest suite
+|-- docs/                 # Documentation
+|-- databricks.yml        # Databricks Asset Bundle config
+```
 
 ## Prerequisites
 
@@ -181,8 +208,50 @@ A clean reconciliation shows 0 differences and `source=live` for external lineag
 
 All documentation lives in `docs/`:
 
-- `PRD.md` — Full product requirements
-- `tech_stack.md` — Architecture decisions
-- `demo_architecture.md` — End-to-end walkthrough
-- `databricks_workspace_setup.md` — Workspace configuration guide
-- `external-lineage.md` — Power BI external lineage setup
+- `PRD.md` - Full product requirements
+- `tech_stack.md` - Architecture decisions
+- `demo_architecture.md` - End-to-end walkthrough
+- `databricks_workspace_setup.md` - Workspace configuration guide
+- `external-lineage.md` - Power BI external lineage setup
+
+## Contributing
+
+1. **Branch from `main`** - never commit directly to `main`
+2. **Branch naming:** `feat/<work>` for features, `fix/<issue>` for fixes (lowercase)
+3. **Run tests and lint before opening a PR:**
+   ```bash
+   bun run test
+   bun run check
+   ruff check . && ruff format .
+   ```
+4. **Squash-merge only** - write a meaningful PR title/description
+5. **Code review required** - see `.github/CODEOWNERS`
+
+See [`AGENTS.md`](AGENTS.md) for detailed coding conventions.
+
+## Managing Secrets
+
+**Never commit tokens, API keys, or credentials to this repository.**
+
+- Use a gitignored `.env.local` for local development
+- For deployed apps, use Databricks Secret Scopes
+- See [`ACCESS_TOKEN_HANDLING.md`](ACCESS_TOKEN_HANDLING.md) for the full policy
+
+This repository is monitored by Drawbridge for secret detection.
+
+## Using AI Coding Assistants
+
+This repo supports AI-assisted development with Cursor, Claude Code, and similar tools.
+
+- **Read [`AGENTS.md`](AGENTS.md)** for repo-specific rules (also mirrored to `.cursorrules`)
+- **Read [`AI_CODING_GOTCHAS.md`](AI_CODING_GOTCHAS.md)** for common pitfalls and best practices
+- Always review AI-generated code before committing
+- Run the test suite to catch logical errors
+
+## License
+
+See [`LICENSE`](LICENSE) for terms. This demo is provided for use with Databricks Services.
+
+## Support
+
+This is a demo application provided on a best-effort basis. See [`NOTICE.md`](NOTICE.md) for support policy.

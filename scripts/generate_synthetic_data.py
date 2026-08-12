@@ -39,8 +39,16 @@ TAMPERED_PCT = 0.03
 EDGE_CASE_PCT = 0.02
 NORMAL_PCT = 1.0 - TAMPERED_PCT - EDGE_CASE_PCT
 
-CATALOG = "dz_demos"
-SCHEMA = "energy_theft_protection"
+import os
+
+CATALOG = os.environ.get("CATALOG", "")
+SCHEMA = os.environ.get("SCHEMA_NAME", "energy_theft_protection")
+
+if not CATALOG:
+    raise SystemExit(
+        "ERROR: CATALOG environment variable is required.\n"
+        "Usage: CATALOG=your_catalog python scripts/generate_synthetic_data.py"
+    )
 
 UK_REGIONS = [
     "London", "South East", "South West", "East of England",

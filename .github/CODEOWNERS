@@ -1,0 +1,18 @@
+# CODEOWNERS - every PR requires review from at least one listed owner.
+#
+# Syntax: <pattern> <@owner1> <@owner2> ...
+# Patterns follow .gitignore rules. Last-matching pattern wins.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+#
+# IMPORTANT: For this file to enforce mandatory review, the branch protection rule
+# on `main` must have "Require review from Code Owners" enabled
+# (Settings -> Branches -> Edit rule for main).
+#
+# Roles:
+#   Owner       - Daniel Zoccali (@daniel-zoccali_data)
+#
+# Add additional maintainers here to avoid single-owner review deadlock
+# (GitHub forbids self-approval).
+
+# Default owners for everything in the repo.
+*   @daniel-zoccali_data

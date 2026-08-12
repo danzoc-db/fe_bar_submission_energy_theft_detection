@@ -26,11 +26,9 @@ GEMINI_ENDPOINT = "energy-theft-gemini-gateway"
 OPENAI_ENDPOINT = "energy-theft-openai-gateway"
 LLAMA_ENDPOINT = "energy-theft-llama-gateway"
 
-BUNDLE_TARGETS = {
-    "dev": {"catalog": "dz_demos", "profile": "DEFAULT"},
-    "azure-field-demo": {"catalog": "dz_demos", "profile": "azure-field-demo"},
-    "zoccali-fevm-aws": {"catalog": "zoccali_fevm", "profile": "zoccali-fevm-aws"},
-}
+# Target configurations are read from databricks.yml at runtime.
+# Add your own targets there; this dict provides fallback defaults only.
+BUNDLE_TARGETS: dict[str, dict[str, str]] = {}
 
 
 class Status(Enum):

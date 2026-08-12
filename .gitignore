@@ -5,11 +5,20 @@ __pycache__/
 *.egg-info/
 .venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg
+*.whl
 
-# Environment
+# Environment and secrets (NEVER commit tokens/credentials)
 .env
 .env.local
 .env.*
+*.local.env
+config.local.*
+secrets.json
+secrets.yaml
+.databrickscfg
 
 # APX build artifacts
 .build/
@@ -39,5 +48,33 @@ bun.lock
 Thumbs.db
 .apx/
 
+# Logs
+*.log
+logs/
+*.log.*
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
 # Databricks CLI notebook sync cache (never commit)
 notebooks/.databricks/
+
+# Databricks Apps deploy artifacts (local runtime)
+.states/
+*.db
+
+# Internal development docs (not for customer sharing)
+docs/internal/
+
+# Test artifacts
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
