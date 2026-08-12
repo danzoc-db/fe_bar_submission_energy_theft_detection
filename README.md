@@ -1,8 +1,37 @@
 # UKI Gas Energy Theft Detection
 
-AI-driven anomaly detection demo built on Databricks — APX (FastAPI + React).
+AI-driven anomaly detection for UK energy retailers - built on Databricks APX (FastAPI + React).
+
+Energy theft costs Great Britain an estimated GBP 830m-1.4bn per year, adding GBP 29-48 to every honest household's bill. UK suppliers detect only ~40% of expected cases against regulatory targets. This demo shows how Databricks unifies ML scoring, investigator workflows, Genie natural-language queries, and AI governance in a single deployable application - helping revenue protection teams recover stolen value faster and with full auditability.
+
+![Hero - Energy Theft Detection Dashboard](assets/hero-screenshot.png)
+
+![Architecture - Databricks Data Intelligence Platform](assets/architecture-screenshot.png)
+
+**[Watch the full demo video](https://www.databricks.com/resources/demos/videos/detect-energy-theft-faster-genie)** - See the application in action with Genie natural-language queries, ML scoring, and investigator workflows.
 
 See `docs/PRD.md` for the full product requirements document.
+
+## Team Information
+
+| Role | Name | GitHub |
+|------|------|--------|
+| Owner | Daniel Zoccali | @daniel-zoccali_data |
+
+## Repository Structure
+
+```
+.
+|-- src/energy_theft_detection/
+|   |-- backend/          # FastAPI backend
+|   |-- ui/               # React frontend
+|-- notebooks/            # Databricks notebooks (medallion, ML, Genie)
+|-- pipelines/            # Declarative SQL pipelines
+|-- scripts/              # Deployment and utility scripts
+|-- tests/                # pytest suite
+|-- docs/                 # Documentation
+|-- databricks.yml        # Databricks Asset Bundle config
+```
 
 ## Prerequisites
 
@@ -66,7 +95,7 @@ cp .env.local.example .env.local
 bun run test         # or: uv run pytest tests/ -v
 ```
 
-All tests pass with no external dependencies — they run against the FastAPI test client in offline mode.
+All unit tests pass with no external dependencies — they run against the FastAPI test client in offline mode. Live integration tests require `APP_URL` and `DATABRICKS_PROFILE` (see Remote Deployment below).
 
 ### Type Checking
 
@@ -80,114 +109,81 @@ TypeScript compilation must succeed. Python type errors from `notebooks/` are ex
 
 ### Prerequisites
 
-1. Databricks CLI configured with a workspace profile (e.g., `azure-field-demos`)
+1. Databricks CLI configured with a workspace profile (e.g. `<your-profile>`)
 2. A SQL Warehouse created in the target workspace
-3. Unity Catalog schema `dz_demos.energy_theft_protection` created
+3. Unity Catalog schema `<your_catalog>.energy_theft_protection` created (see `docs/databricks_workspace_setup.md`)
 
 ### Deploy
 
 ```bash
-# Set your SQL warehouse ID
+# Set your SQL warehouse ID and choose a bundle target
 export SQL_WAREHOUSE_ID=<your-warehouse-id>
 
-# Build and deploy
-uv run apx build
-databricks bundle deploy -t dev --var sql_warehouse_id=$SQL_WAREHOUSE_ID
+# Build and deploy the bundle (endpoints, job, pipeline, app shell)
+BUN_CONFIG_NO_VERIFY=1 uv run apx build
+uv run databricks bundle deploy -t <your-target> --var sql_warehouse_id=$SQL_WAREHOUSE_ID
 
-# Open the deployed app
-databricks bundle run energy-theft-detection-app -t dev
+# Deploy app source code (path is printed by bundle deploy)
+databricks apps deploy energy-theft-detection \
+  --profile <your-profile> \
+  --source-code-path "/Workspace/Users/<your-user>/.bundle/energy-theft-detection/<your-target>/files/.build"
 ```
+
+### Post-deploy validation
+
+```bash
+uv run python3 scripts/validate_deployment.py \
+  --profile <your-profile> \
+  --target <your-target> \
+  --app-url https://<your-app>.databricksapps.com
+```
+
+### Smoke test checklist
+
+After deployment, walk through these pages to confirm end-to-end health:
+
+1. `GET /api/health` — SQL connected, catalog matches your deployment
+2. `/dashboard` — KPI tiles load, Genie panel responds
+3. `/investigation` — case list loads, LLM summary calls the OpenAI gateway
+4. `/governance` — audit trail populated, external lineage shows 4 Power BI reports
+5. `/board-report` — Agent Atlas trace (MAS or graceful fallback)
+6. `/presentation` — overview slides for demo narration
+7. `/why-databricks` — compete messaging renders (if enabled)
+
+### Live integration tests
+
+```bash
+APP_URL=https://<your-app>.databricksapps.com \
+DATABRICKS_PROFILE=<your-profile> \
+uv run pytest tests/test_remote_integration.py -v
+```
+
+### Cross-workspace reconciliation
+
+After redeploying, compare the new app against a saved baseline to verify Power BI lineage parity:
+
+```bash
+python3 scripts/reconcile_workspaces.py \
+  --snapshot https://<your-app>.databricksapps.com \
+  --out /tmp/before.json
+
+python3 scripts/reconcile_workspaces.py \
+  --compare /tmp/before.json \
+  --after https://<your-app>.databricksapps.com
+```
+
+A clean reconciliation shows 0 differences and `source=live` for external lineage.
 
 ### Data Setup (on Databricks cluster)
 
 1. Run `sql/01_create_tables.sql` to create the Unity Catalog tables
 2. Run `notebooks/01_generate_synthetic_data.py` as a notebook on a cluster to populate 100K synthetic accounts
 
----
-
-## Deployment: zoccali-fevm-aws (AWS FEVM — catalog dev target)
-
-Private development workspace used for dbdemos catalog iteration.
-Once stable, the demo will migrate to E2 Demo West with area lead approval.
-
-**Workspace:** `fevm-zoccali-fevm-aws.cloud.databricks.com`  
-**Catalog / Schema:** `zoccali_fevm.energy_theft_protection`  
-**SQL Warehouse:** `85c1b174d196486d` (5X-Large serverless)  
-**Genie Space:** `01f16db6c03419a3b953033d66b5855f`  
-**App URL:** https://energy-theft-detection-7474643973020026.aws.databricksapps.com  
-**dbdemos Catalog ID:** *(TBD — update after submission)*  
-**Maintainer:** Daniel Zoccali (`daniel.zoccali@databricks.com`)
-
-### Deploy commands
-
-```bash
-# 1. Build frontend + patch app.yml + verify permissions
-BUN_CONFIG_NO_VERIFY=1 uv run apx build
-
-# 2. Deploy bundle (endpoints, job, pipeline, app)
-uv run databricks bundle deploy -t zoccali-fevm-aws
-
-# 3. Deploy app source code
-databricks apps deploy energy-theft-detection --profile zoccali-fevm-aws \
-  --source-code-path "/Workspace/Users/daniel.zoccali@databricks.com/.bundle/energy-theft-detection/zoccali-fevm-aws/files/.build"
-```
-
-### Variables
-
-| Variable | Value |
-|----------|-------|
-| `catalog` | `zoccali_fevm` |
-| `sql_warehouse_id` | `85c1b174d196486d` |
-| `genie_space_id` | `01f16db6c03419a3b953033d66b5855f` |
-| `mas_endpoint` | *(empty — set after running 08_configure_agent_atlas.py)* |
-| `fmapi_secret_scope` | `energy-theft-fmapi` |
-
-### Post-deploy validation
-
-```bash
-# Full deployment health check (includes FMAPI endpoints + external lineage)
-python3 scripts/validate_deployment.py \
-  --profile zoccali-fevm-aws \
-  --target zoccali-fevm-aws \
-  --app-url https://energy-theft-detection-7474643973020026.aws.databricksapps.com \
-  --token <YOUR_PAT>
-```
-
-### Smoke test checklist
-
-1. `GET /api/health` — SQL connected, catalog `zoccali_fevm`
-2. `/dashboard` — KPI tiles load, Genie panel responds
-3. `/investigation` — case list loads, LLM summary calls `energy-theft-openai-gateway`
-4. `/governance` — audit trail populated, external lineage shows 4 Power BI reports
-5. `/board-report` — Agent Atlas trace (MAS or graceful fallback)
-6. `/presentation` — "Build an App Like This" page loads
-7. `/why-databricks` — compete messaging renders (if enabled)
-
-### Cross-workspace reconciliation
-
-After redeploying, compare the new app against the baseline to verify Power BI lineage parity:
-
-```bash
-# Snapshot the current (before) state
-python3 scripts/reconcile_workspaces.py \
-  --snapshot https://energy-theft-detection-7474643973020026.aws.databricksapps.com \
-  --token <YOUR_PAT> \
-  --out /tmp/before.json
-
-# After redeploying, compare
-python3 scripts/reconcile_workspaces.py \
-  --compare /tmp/before.json \
-  --after https://energy-theft-detection-7474643973020026.aws.databricksapps.com \
-  --token <YOUR_PAT>
-```
-
-A clean reconciliation shows 0 differences and `source=live` for external lineage.
-
 ## Architecture
 
 - **Backend:** FastAPI (Python) — stateless, reads from Delta tables via SQL Warehouse Statement Execution API
 - **Frontend:** React + TypeScript + Vite + shadcn/ui + TanStack Router/Query
-- **Data:** Unity Catalog (`dz_demos.energy_theft_protection`)
+- **Data:** Unity Catalog (`<your_catalog>.energy_theft_protection`)
 - **ML:** Isolation Forest + LSTM ensemble (pre-computed scores in Delta)
 - **NL:** Genie Conversation API (executive queries over Metric Views)
 - **LLM:** FMAPI (openai-gateway → `databricks-claude-sonnet-4`) via AI Gateway (investigation case summaries); Bedrock gateway also deployed but not the default
@@ -212,10 +208,50 @@ A clean reconciliation shows 0 differences and `source=live` for external lineag
 
 All documentation lives in `docs/`:
 
-- `PRD.md` — Full product requirements
-- `tech_stack.md` — Architecture decisions
-- `development_methodology.md` — Plan/Agent TDD process
-- `demo_architecture.md` — End-to-end walkthrough
-- `databricks_workspace_setup.md` — Workspace configuration guide
-- `backlog.md` — Deferred features
-- `issues_and_fixes.md` — Known issues and resolutions
+- `PRD.md` - Full product requirements
+- `tech_stack.md` - Architecture decisions
+- `demo_architecture.md` - End-to-end walkthrough
+- `databricks_workspace_setup.md` - Workspace configuration guide
+- `external-lineage.md` - Power BI external lineage setup
+
+## Contributing
+
+1. **Branch from `main`** - never commit directly to `main`
+2. **Branch naming:** `feat/<work>` for features, `fix/<issue>` for fixes (lowercase)
+3. **Run tests and lint before opening a PR:**
+   ```bash
+   bun run test
+   bun run check
+   ruff check . && ruff format .
+   ```
+4. **Squash-merge only** - write a meaningful PR title/description
+5. **Code review required** - see `.github/CODEOWNERS`
+
+See [`AGENTS.md`](AGENTS.md) for detailed coding conventions.
+
+## Managing Secrets
+
+**Never commit tokens, API keys, or credentials to this repository.**
+
+- Use a gitignored `.env.local` for local development
+- For deployed apps, use Databricks Secret Scopes
+- See [`ACCESS_TOKEN_HANDLING.md`](ACCESS_TOKEN_HANDLING.md) for the full policy
+
+This repository is monitored by Drawbridge for secret detection.
+
+## Using AI Coding Assistants
+
+This repo supports AI-assisted development with Cursor, Claude Code, and similar tools.
+
+- **Read [`AGENTS.md`](AGENTS.md)** for repo-specific rules (also mirrored to `.cursorrules`)
+- **Read [`AI_CODING_GOTCHAS.md`](AI_CODING_GOTCHAS.md)** for common pitfalls and best practices
+- Always review AI-generated code before committing
+- Run the test suite to catch logical errors
+
+## License
+
+See [`LICENSE`](LICENSE) for terms. This demo is provided for use with Databricks Services.
+
+## Support
+
+This is a demo application provided on a best-effort basis. See [`NOTICE.md`](NOTICE.md) for support policy.

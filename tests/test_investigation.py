@@ -108,6 +108,37 @@ class TestAccountDetail:
         for key in ("isolation_forest_score", "lstm_deviation_score", "cohort_deviation_score"):
             assert key in data["signals"]
 
+    def test_account_summary_returns_200(self, client):
+        """MUST: Fast summary endpoint responds without chart series."""
+        r = client.get("/api/investigation/accounts/BG-0000001/summary")
+        assert r.status_code == 200
+        data = r.json()
+        assert "signals" in data
+        assert "meter_reads" not in data
+
+    def test_consumption_chart_returns_200(self, client):
+        """MUST: Chart endpoint returns meter series."""
+        r = client.get("/api/investigation/accounts/BG-0000001/consumption-chart")
+        assert r.status_code == 200
+        data = r.json()
+        assert "meter_reads" in data
+        assert "cohort_avg_reads" in data
+
+    def test_meter_series_sorted_chronologically(self):
+        """MUST: COLLECT_LIST order is normalized before charting."""
+        from datetime import datetime
+
+        from energy_theft_detection.backend.models import MeterReadPoint
+        from energy_theft_detection.backend.router import _sort_meter_points
+
+        unsorted = [
+            MeterReadPoint(read_timestamp=datetime(2026, 3, 1), consumption_kwh=3.0, read_quality="actual"),
+            MeterReadPoint(read_timestamp=datetime(2026, 1, 1), consumption_kwh=1.0, read_quality="actual"),
+            MeterReadPoint(read_timestamp=datetime(2026, 2, 1), consumption_kwh=2.0, read_quality="actual"),
+        ]
+        sorted_pts = _sort_meter_points(unsorted)
+        assert [p.consumption_kwh for p in sorted_pts] == [1.0, 2.0, 3.0]
+
 
 class TestLLMCaseSummary:
     """TC-I3: Bedrock LLM case summary."""
@@ -124,3 +155,41 @@ class TestLLMCaseSummary:
             assert field in data, f"Missing field: {field}"
         assert isinstance(data["key_signals"], list)
         assert len(data["key_signals"]) > 0
+
+    def test_case_summary_skip_sql_accepts_context(self, client):
+        """MUST: skip_sql=true uses query params instead of anomaly_scores SQL."""
+        r = client.get(
+            "/api/llm/case-summary/BG-0000001"
+            "?skip_sql=true&risk_level=HIGH&consumption_drop_pct=42.5"
+            "&composite_risk_score=0.91&comms_gap_count_30d=7"
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["risk_level"] == "HIGH"
+        assert any("42.5%" in s for s in data["key_signals"])
+        assert any("7 communication" in s for s in data["key_signals"])
+
+
+class TestAccountDetailSQL:
+    """Unit tests for account detail SQL helpers."""
+
+    def test_account_detail_sql_gold_contains_gold_table(self):
+        from energy_theft_detection.backend.router import _account_detail_sql
+
+        sql = _account_detail_sql("UKI-0000001", use_gold=True)
+        assert "gold_daily_consumption" in sql
+        assert "smart_meter_reads" not in sql
+        assert "ORDER BY day" in sql
+
+    def test_consumption_chart_sql_uses_cohort_mv_when_enabled(self):
+        from energy_theft_detection.backend.router import _consumption_chart_sql
+
+        sql = _consumption_chart_sql("UKI-0000001", use_gold=True, use_cohort_mv=True)
+        assert "gold_postcode_cohort_daily" in sql
+
+    def test_account_detail_sql_bronze_fallback(self):
+        from energy_theft_detection.backend.router import _account_detail_sql
+
+        sql = _account_detail_sql("UKI-0000001", use_gold=False)
+        assert "smart_meter_reads" in sql
+        assert "gold_daily_consumption" not in sql

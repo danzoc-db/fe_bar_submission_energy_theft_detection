@@ -5,19 +5,19 @@ verify feature parity — especially Power BI external lineage.
 
 Usage:
     python3 scripts/reconcile_workspaces.py \\
-        --before https://energy-theft-detection-7474643973020026.aws.databricksapps.com \\
-        --after  https://energy-theft-detection-<new>.aws.databricksapps.com \\
+        --before https://<your-app>.databricksapps.com \\
+        --after  https://<your-new-app>.databricksapps.com \\
         [--token <DATABRICKS_PAT>]
 
     # Snapshot-only mode (capture current state before a redeploy):
     python3 scripts/reconcile_workspaces.py \\
-        --snapshot https://energy-theft-detection-7474643973020026.aws.databricksapps.com \\
+        --snapshot https://<your-app>.databricksapps.com \\
         --out /tmp/before_snapshot.json
 
     # Compare a previously saved snapshot against the current live app:
     python3 scripts/reconcile_workspaces.py \\
         --compare /tmp/before_snapshot.json \\
-        --after https://energy-theft-detection-<new>.aws.databricksapps.com
+        --after https://<your-new-app>.databricksapps.com
 """
 
 from __future__ import annotations

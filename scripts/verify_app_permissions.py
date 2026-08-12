@@ -18,9 +18,11 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.iam import AccessControlRequest, ObjectPermissions, PermissionLevel
 
 
+import os
+
 APP_NAME = "energy-theft-detection"
-DEFAULT_CATALOG = "dz_demos"
-DEFAULT_SCHEMA = "energy_theft_protection"
+DEFAULT_CATALOG = os.environ.get("CATALOG", "")
+DEFAULT_SCHEMA = os.environ.get("SCHEMA_NAME", "energy_theft_protection")
 
 
 def get_app_info(w: WorkspaceClient) -> tuple[str, str]:
@@ -164,6 +166,8 @@ def main():
     args = parser.parse_args()
 
     catalog = args.catalog
+    if not catalog:
+        parser.error("--catalog is required (or set CATALOG environment variable)")
     schema_fqn = f"{catalog}.{args.schema}"
 
     kwargs = {"profile": args.profile} if args.profile else {}

@@ -3,9 +3,9 @@
 
 **Version:** 1.0
 **Date:** 17 March 2026
-**Catalog:** `dz_demos.energy_theft_protection`
+**Catalog:** `<your_catalog>.energy_theft_protection`
 **Framework:** Databricks APX (FastAPI + React)
-**Workspace Profile:** `azure-field-demos`
+**Workspace Profile:** `<your-profile>`
 
 ---
 
@@ -138,7 +138,7 @@ summaries, signal narratives, and field dispatch documents. The LLM collapses a
 ## 3. Application Overview
 
 **Platform:** Databricks App (APX — FastAPI + React + TypeScript)
-**Data:** Delta tables in Unity Catalog — `dz_demos.energy_theft_protection`
+**Data:** Delta tables in Unity Catalog — `<your_catalog>.energy_theft_protection`
 **ML:** MLflow-registered Isolation Forest + LSTM ensemble, batch-scored (simulated)
 **NL Interface:** Genie Conversation API (Susie's executive space)
 **Summarisation:** Bedrock LLM via AI Gateway (Robbie's investigation summaries)
@@ -170,7 +170,7 @@ labelled in the UI with source tooltips on every financial metric.
 
 ## 4. Data Model
 
-All tables in Unity Catalog: **`dz_demos.energy_theft_protection`**
+All tables in Unity Catalog: **`<your_catalog>.energy_theft_protection`**
 
 ### 4.1 Core Delta Tables
 
@@ -356,11 +356,11 @@ experiments show training runs and model cards.
 health monitoring. Susie asks in plain English and expects answers she can cite.
 
 **Tables:**
-- `dz_demos.energy_theft_protection.anomaly_scores`
-- `dz_demos.energy_theft_protection.investigation_cases`
-- `dz_demos.energy_theft_protection.property_reference`
-- `dz_demos.energy_theft_protection.metric_theft_precision_rate` (metric view)
-- `dz_demos.energy_theft_protection.metric_revenue_recovery` (metric view)
+- `<your_catalog>.energy_theft_protection.anomaly_scores`
+- `<your_catalog>.energy_theft_protection.investigation_cases`
+- `<your_catalog>.energy_theft_protection.property_reference`
+- `<your_catalog>.energy_theft_protection.metric_theft_precision_rate` (metric view)
+- `<your_catalog>.energy_theft_protection.metric_revenue_recovery` (metric view)
 
 **Sample Questions:**
 
@@ -396,14 +396,14 @@ optimisation. Deferred to Tier 3.
 ### 7.1 Theft Detection Precision Rate
 
 ```sql
-CREATE OR REPLACE VIEW dz_demos.energy_theft_protection.metric_theft_precision_rate
+CREATE OR REPLACE VIEW <your_catalog>.energy_theft_protection.metric_theft_precision_rate
 WITH METRICS
 LANGUAGE YAML
 AS $$
   version: 1.1
   comment: "Theft Detection Precision Rate: confirmed theft / total HIGH risk cases
             closed. Primary KPI for model performance. Refreshed daily."
-  source: dz_demos.energy_theft_protection.investigation_cases
+  source: <your_catalog>.energy_theft_protection.investigation_cases
   filter: risk_tier = 'HIGH'
   dimensions:
     - name: Month
@@ -429,13 +429,13 @@ $$
 ### 7.2 Revenue Recovery
 
 ```sql
-CREATE OR REPLACE VIEW dz_demos.energy_theft_protection.metric_revenue_recovery
+CREATE OR REPLACE VIEW <your_catalog>.energy_theft_protection.metric_revenue_recovery
 WITH METRICS
 LANGUAGE YAML
 AS $$
   version: 1.1
   comment: "Revenue recovered from confirmed theft cases. Primary financial KPI."
-  source: dz_demos.energy_theft_protection.investigation_cases
+  source: <your_catalog>.energy_theft_protection.investigation_cases
   filter: outcome = 'THEFT_CONFIRMED'
   dimensions:
     - name: Month

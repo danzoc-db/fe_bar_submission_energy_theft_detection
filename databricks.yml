@@ -421,50 +421,6 @@ targets:
               serving_endpoint:
                 name: "energy-theft-llama-gateway"
                 permission: "CAN_QUERY"
-  azsu:
-    workspace:
-      profile: azsu-centrica-demo
-    artifacts:
-      default:
-        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py azsu_centrica_demo mas-c41b54be-endpoint 01f137845bff15e1a08bb2ee463075b5 && python3 scripts/verify_app_permissions.py --profile azsu-centrica-demo --catalog azsu_centrica_demo --genie-space-id 01f137845bff15e1a08bb2ee463075b5 --fix"
-    variables:
-      catalog: "azsu_centrica_demo"
-      sql_warehouse_id: "16de76f2a615a8aa"
-      genie_space_id: "01f137845bff15e1a08bb2ee463075b5"
-      mas_endpoint: "mas-c41b54be-endpoint"
-    resources:
-      apps:
-        energy-theft-detection-app:
-          resources:
-            - name: "warehouse"
-              sql_warehouse:
-                id: "${var.sql_warehouse_id}"
-                permission: "CAN_USE"
-            - name: "serving_endpoint"
-              serving_endpoint:
-                name: "energy-theft-bedrock-gateway"
-                permission: "CAN_QUERY"
-            - name: "gemini_endpoint"
-              serving_endpoint:
-                name: "energy-theft-gemini-gateway"
-                permission: "CAN_QUERY"
-            - name: "openai_endpoint"
-              serving_endpoint:
-                name: "energy-theft-openai-gateway"
-                permission: "CAN_QUERY"
-            - name: "llama_endpoint"
-              serving_endpoint:
-                name: "energy-theft-llama-gateway"
-                permission: "CAN_QUERY"
-            - name: "mas_endpoint"
-              serving_endpoint:
-                name: "${var.mas_endpoint}"
-                permission: "CAN_QUERY"
-            - name: "genie-space"
-              genie_space:
-                name: "Revenue Protection Executive Intelligence"
-                space_id: "${var.genie_space_id}"
-                permission: "CAN_RUN"
   zoccali-fevm:
     workspace:
       profile: zoccali-fevm

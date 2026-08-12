@@ -9,7 +9,6 @@
         "test": "uv run pytest tests/ -v",
         "test:watch": "uv run pytest tests/ -v --tb=short -x",
         "validate": "uv run python3 scripts/validate_deployment.py",
-        "validate:azsu": "uv run python3 scripts/validate_deployment.py --target azsu",
         "validate:dev": "uv run python3 scripts/validate_deployment.py --target dev"
     },
     "dependencies": {
