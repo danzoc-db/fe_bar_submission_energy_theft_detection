@@ -49,6 +49,7 @@ class LakebaseClient:
         self._config = config
         self._schema = config.lakebase_schema
         self._serving_table = config.lakebase_serving_table
+        self._serving_schema = config.lakebase_serving_schema
         self._instance = config.lakebase_instance_name
         self._database = config.lakebase_database
 
@@ -148,7 +149,7 @@ class LakebaseClient:
                 SELECT serving_key, account_id, fuel_type, composite_risk_score,
                        risk_tier, comms_gap_count_30d, consumption_drop_pct,
                        postcode_sector, model_version, investigation_status, score_timestamp
-                FROM public.{self._serving_table}
+                FROM {self._serving_schema}.{self._serving_table}
                 {where}
                 ORDER BY composite_risk_score DESC
                 LIMIT %s

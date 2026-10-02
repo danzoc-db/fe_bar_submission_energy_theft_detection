@@ -81,6 +81,11 @@ class AppConfig(BaseSettings):
     lakebase_serving_table: str = Field(
         default="anomaly_scores_serving", validation_alias="LAKEBASE_SERVING_TABLE"
     )
+    # The synced table lands in a Postgres schema that mirrors the UC schema
+    # name (not `public`), e.g. energy_theft_protection.anomaly_scores_serving.
+    lakebase_serving_schema: str = Field(
+        default="energy_theft_protection", validation_alias="LAKEBASE_SERVING_SCHEMA"
+    )
 
     @property
     def workspace_url(self) -> str:

@@ -187,7 +187,11 @@ def ensure_instance(w):
 
 
 def ensure_synced_table(w, catalog: str, schema: str):
-    from databricks.sdk.service.database import SyncedDatabaseTable, SyncedTableSpec
+    from databricks.sdk.service.database import (
+        SyncedDatabaseTable,
+        SyncedTableSchedulingPolicy,
+        SyncedTableSpec,
+    )
 
     name = f"{catalog}.{schema}.{SERVING_SYNCED_TABLE}"
     source = f"{catalog}.{schema}.{SERVING_SOURCE_TABLE}"
@@ -202,7 +206,9 @@ def ensure_synced_table(w, catalog: str, schema: str):
     spec = SyncedTableSpec(
         source_table_full_name=source,
         primary_key_columns=["serving_key"],
-        scheduling_policy="SNAPSHOT",  # triggered snapshot after each scoring batch
+        # Triggered snapshot after each scoring batch (CDF enabled on the source
+        # so we can switch to CONTINUOUS later without a reload).
+        scheduling_policy=SyncedTableSchedulingPolicy.SNAPSHOT,
         create_database_objects_if_missing=True,
     )
     st = w.database.create_synced_database_table(
@@ -215,7 +221,30 @@ def ensure_synced_table(w, catalog: str, schema: str):
     )
     log(f"Synced table '{name}' created; UC provisioning state = "
         f"{st.unity_catalog_provisioning_state}")
+    wait_for_sync(w, name)
     return st
+
+
+def wait_for_sync(w, name: str, timeout_s: int = 600) -> None:
+    """Poll until the synced table's initial snapshot is ONLINE (or fails)."""
+    deadline = time.time() + timeout_s
+    last = None
+    while time.time() < deadline:
+        st = w.database.get_synced_database_table(name=name)
+        status = st.data_synchronization_status
+        state = getattr(status, "detailed_state", None)
+        state_name = state.value if state is not None else "UNKNOWN"
+        if state_name != last:
+            log(f"  sync state: {state_name}")
+            last = state_name
+        if state_name.startswith("SYNCED_TABLE_ONLINE"):
+            log("  initial snapshot complete; synced table is ONLINE")
+            return
+        if "FAILED" in state_name:
+            log(f"  sync FAILED: {state_name}")
+            return
+        time.sleep(10)
+    log(f"  sync not ONLINE within {timeout_s}s (continuing; check later)")
 
 
 # --------------------------------------------------------------------------- #
@@ -359,17 +388,31 @@ def demo_transaction(conn) -> None:
             log(f"    audit: {ev[0]:14s} {str(ev[1]):16s} -> {str(ev[2]):16s} @ {ev[3]}")
 
 
-def verify(conn) -> None:
-    """Print row counts for the synced table + OLTP tables as evidence."""
+def verify(conn, serving_schema: str) -> None:
+    """Print row counts for the synced table + OLTP tables as evidence.
+
+    The synced table lands in a Postgres schema that mirrors the UC schema name
+    (e.g. ``energy_theft_protection``), not ``public``.
+    """
+    serving_fqtn = f"{serving_schema}.{SERVING_SYNCED_TABLE}"
     with conn.cursor() as cur:
-        cur.execute(f"SELECT COUNT(*) FROM public.{SERVING_SYNCED_TABLE}")
-        synced = cur.fetchone()[0]
-        log(f"  synced queue rows (public.{SERVING_SYNCED_TABLE}): {synced}")
+        # Synced table (read path). Tolerate a still-provisioning sync so the
+        # OLTP evidence below always lands.
+        try:
+            cur.execute(f"SELECT COUNT(*) FROM {serving_fqtn}")
+            synced = cur.fetchone()[0]
+            log(f"  synced queue rows ({serving_fqtn}): {synced}")
+            cur.execute(
+                f"SELECT risk_tier, COUNT(*) FROM {serving_fqtn} "
+                "GROUP BY risk_tier ORDER BY 1"
+            )
+            for tier, n in cur.fetchall():
+                log(f"    {tier}: {n}")
+        except Exception as e:  # noqa: BLE001
+            conn.rollback()
+            log(f"  synced table not queryable yet (sync may be in progress): {e}")
 
-        cur.execute(f"SELECT risk_tier, COUNT(*) FROM public.{SERVING_SYNCED_TABLE} GROUP BY risk_tier ORDER BY 1")
-        for tier, n in cur.fetchall():
-            log(f"    {tier}: {n}")
-
+        # OLTP tables (write path) — always available.
         cur.execute(f"SELECT COUNT(*) FROM {PG_SCHEMA}.investigation_cases")
         cases = cur.fetchone()[0]
         cur.execute(f"SELECT COUNT(*) FROM {PG_SCHEMA}.case_events")
@@ -435,7 +478,7 @@ def main() -> int:
     demo_transaction(conn)
 
     banner("STAGE 6: Verification")
-    verify(conn)
+    verify(conn, args.schema)
 
     conn.close()
     banner("DONE")

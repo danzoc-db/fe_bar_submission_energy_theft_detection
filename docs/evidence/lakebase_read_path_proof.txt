@@ -1,0 +1,33 @@
+Lakebase read/write path proof - captured 2026-10-02T11:11:57Z
+Instance: energy-theft-lakebase | db: databricks_postgres
+==============================================================================
+
+[READ PATH] Top 8 flagged accounts from the synced serving queue
+(energy_theft_protection.anomaly_scores_serving, synced from Delta gold):
+      account_id |      fuel_type |      risk_tier |          score |           gaps |       drop_pct
+     UKI-0001730 |    electricity |           HIGH |         0.7608 |           42.0 |         -103.6
+     UKI-0001651 |    electricity |           HIGH |         0.7169 |           42.0 |           15.8
+     UKI-0000813 |    electricity |           HIGH |         0.7006 |           37.0 |          -28.7
+     UKI-0000808 |    electricity |           HIGH |         0.6907 |           51.0 |           47.0
+     UKI-0001200 |    electricity |           HIGH |         0.6906 |           76.0 |           53.6
+     UKI-0000914 |    electricity |           HIGH |         0.6837 |           65.0 |         -105.7
+     UKI-0000210 |    electricity |           HIGH |         0.6709 |           49.0 |           15.6
+     UKI-0000124 |    electricity |           HIGH |         0.6654 |           34.0 |         -108.4
+
+[READ PATH] Queue size by risk tier:
+    HIGH: 146
+    MEDIUM: 181
+
+[WRITE PATH] OLTP case lifecycle (revenue_protection.investigation_cases):
+    ('CASE-20261002111058775-f39289', 'DEMO-ACCT-01C80006', 'CONFIRMED_THEFT', 'THEFT_CONFIRMED', Decimal('4820.00'), datetime.datetime(2026, 10, 2, 11, 10, 58, 775844, tzinfo=zoneinfo.ZoneInfo(key='GMT')), datetime.datetime(2026, 10, 2, 11, 10, 58, 889415, tzinfo=zoneinfo.ZoneInfo(key='GMT')))
+
+[WRITE PATH] Append-only audit log produced by the state-transition trigger:
+    (1, 'CASE-20261002111058775-f39289', 'CASE_OPENED', None, 'IN_PROGRESS', datetime.datetime(2026, 10, 2, 11, 10, 58, 775844, tzinfo=zoneinfo.ZoneInfo(key='GMT')))
+    (2, 'CASE-20261002111058775-f39289', 'STATUS_CHANGE', 'IN_PROGRESS', 'CONFIRMED_THEFT', datetime.datetime(2026, 10, 2, 11, 10, 58, 889415, tzinfo=zoneinfo.ZoneInfo(key='GMT')))
+
+[SCHEMA] Postgres objects in the Lakebase instance:
+    energy_theft_protection.anomaly_scores_serving
+    revenue_protection.case_events
+    revenue_protection.investigation_cases
+
+Proof complete.

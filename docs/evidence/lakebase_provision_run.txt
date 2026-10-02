@@ -1,0 +1,46 @@
+[2026-10-02T11:10:43Z] Authenticated as daniel.zoccali@databricks.com on profile 'zoccali-fevm-aws'
+
+========================================================================
+STAGE 1: Delta serving source (dedup HIGH/MEDIUM queue)
+========================================================================
+[2026-10-02T11:10:55Z] Serving source table zoccali_fevm.energy_theft_protection.anomaly_scores_serving_src built: 327 rows (HIGH/MEDIUM queue, deduped)
+
+========================================================================
+STAGE 2: Lakebase instance
+========================================================================
+[2026-10-02T11:10:56Z] Lakebase instance 'energy-theft-lakebase' already exists (state=DatabaseInstanceState.AVAILABLE, capacity=CU_1)
+
+========================================================================
+STAGE 3: Synced table (Delta -> Postgres)
+========================================================================
+[2026-10-02T11:10:57Z] Synced table 'zoccali_fevm.energy_theft_protection.anomaly_scores_serving' already exists (state=ProvisioningInfoState.ACTIVE)
+
+========================================================================
+STAGE 4: OLTP case-management schema (native Postgres)
+========================================================================
+[2026-10-02T11:10:58Z] Connected to Lakebase Postgres at ep-soft-scene-d2tx6fl2.database.us-east-1.cloud.databricks.com:5432/databricks_postgres as daniel.zoccali@databricks.com
+[2026-10-02T11:10:58Z] OLTP schema 'revenue_protection' applied (investigation_cases, case_events, trigger)
+
+========================================================================
+STAGE 5: Demo transaction (open -> close -> audit trail)
+========================================================================
+[2026-10-02T11:10:58Z]   OPEN  case CASE-20261002111058775-f39289 for DEMO-ACCT-01C80006: status=IN_PROGRESS opened_at=2026-10-02 11:10:58.775844+00:00
+[2026-10-02T11:10:58Z]   CLOSE case CASE-20261002111058775-f39289: status=CONFIRMED_THEFT outcome=THEFT_CONFIRMED recovered=GBP4820.00 updated_at=2026-10-02 11:10:58.889415+00:00
+[2026-10-02T11:10:59Z]     audit: CASE_OPENED    None             -> IN_PROGRESS      @ 2026-10-02 11:10:58.775844+00:00
+[2026-10-02T11:10:59Z]     audit: STATUS_CHANGE  IN_PROGRESS      -> CONFIRMED_THEFT  @ 2026-10-02 11:10:58.889415+00:00
+
+========================================================================
+STAGE 6: Verification
+========================================================================
+[2026-10-02T11:10:59Z]   synced queue rows (energy_theft_protection.anomaly_scores_serving): 327
+[2026-10-02T11:10:59Z]     HIGH: 146
+[2026-10-02T11:10:59Z]     MEDIUM: 181
+[2026-10-02T11:10:59Z]   OLTP cases: 1, audit events: 2
+
+========================================================================
+DONE
+========================================================================
+[2026-10-02T11:10:59Z] Lakebase operational-serving layer provisioned and verified.
+[2026-10-02T11:10:59Z]   instance        : energy-theft-lakebase (ep-soft-scene-d2tx6fl2.database.us-east-1.cloud.databricks.com)
+[2026-10-02T11:10:59Z]   synced table    : zoccali_fevm.energy_theft_protection.anomaly_scores_serving
+[2026-10-02T11:10:59Z]   oltp schema     : databricks_postgres.revenue_protection
