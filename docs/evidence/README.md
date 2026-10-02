@@ -1,35 +1,46 @@
-# Execution evidence - Lakebase operational-serving layer
+# Execution evidence - connected six-stage journey
 
-These are **real run logs** captured against the `zoccali-fevm-aws` workspace
-(catalog `zoccali_fevm`, schema `energy_theft_protection`) on 2 Oct 2026. They
-are committed as text so the build is verifiable without running anything.
+Real run output captured against workspace profile `zoccali-fevm-aws`
+(catalog `zoccali_fevm`, schema `energy_theft_protection`) on 2 Oct 2026.
+Source code alone is not the proof; these logs are.
+
+Journey the `end_to_end` job now encodes:
+
+    Lakeflow -> Unity Catalog -> ML scoring -> Lakebase -> Genie -> App
+
+Task `provision_lakebase` (`notebooks/10_provision_lakebase.py`) runs after
+`batch_scoring` and is a dependency of `configure_genie`.
 
 ## Files
 
-| File | What it proves |
-|------|----------------|
-| [`lakebase_provision_run.txt`](lakebase_provision_run.txt) | End-to-end provisioning via `scripts/provision_lakebase.py`: deduped Delta serving source (327 rows), Lakebase instance `AVAILABLE`, synced table `ONLINE`, OLTP schema applied, a real open->close transaction, and verification counts. |
-| [`lakebase_read_path_proof.txt`](lakebase_read_path_proof.txt) | The live read + write paths: top flagged accounts served from Postgres (synced from Delta gold), queue size by risk tier, the OLTP case row, and the append-only audit log produced by the state-transition trigger. |
+| File | Stage | What it proves |
+|------|-------|----------------|
+| [`end_to_end_journey.txt`](end_to_end_journey.txt) | 1-6 connected | One log: medallion row counts, UC comments + table lineage, ML precision by month, Lakebase ONLINE + OLTP counts, Genie Q-to-SQL-to-answer on a Metric View, deployed app with `lakebase` resource. |
+| [`lakebase_provision_run.txt`](lakebase_provision_run.txt) | 4 | Instance AVAILABLE, synced table ONLINE, 327 queue rows, OLTP open/close + trigger. |
+| [`lakebase_read_path_proof.txt`](lakebase_read_path_proof.txt) | 4 | Postgres serving queue (HIGH/MEDIUM) and case audit trail. |
 
-## Verified facts
+## Verified facts (2 Oct 2026)
 
-- **Synced table (Delta -> Postgres):** `energy_theft_protection.anomaly_scores_serving`
-  holds **327** rows (HIGH **146**, MEDIUM **181**), synced from the Delta gold
-  table. Sync reached `SYNCED_TABLE_ONLINE_NO_PENDING_UPDATE`.
-- **Instance:** `energy-theft-lakebase` (capacity `CU_1`) reached
-  `AVAILABLE`; read-write DNS resolved and accepted a `psycopg` connection using
-  a short-lived OAuth credential (no stored password).
-- **OLTP write path:** a case was opened (`IN_PROGRESS`) and closed
-  (`CONFIRMED_THEFT`, GBP 4,820 recovered) in Postgres with read-your-writes
-  latency; the `BEFORE INSERT OR UPDATE` trigger appended **2** `case_events`
-  rows (`CASE_OPENED`, `STATUS_CHANGE`) automatically.
+- **Lakeflow:** `smart_meter_reads` 2,793,758; `anomaly_scores` 1,815 (HIGH 146 / MEDIUM 181 / LOW 1,488); serving source and synced table both 327.
+- **UC:** table comments on gold/ML tables; `system.access.table_lineage` shows Metric View materialisations from `theft_detection_metrics`.
+- **ML:** latest HIGH-tier `model_performance_log` (2026-09) precision 81.9 / recall 82.0 / F1 82.0.
+- **Lakebase:** `energy-theft-lakebase` CU_1 AVAILABLE; sync `SYNCED_TABLE_ONLINE_NO_PENDING_UPDATE`; Postgres queue 327; OLTP cases 7 / events 9.
+- **Genie:** question "year-to-date revenue recovered from confirmed theft" generated
+
+      SELECT MEASURE(`Revenue Recovered`) ...
+      FROM zoccali_fevm.energy_theft_protection.theft_detection_metrics
+
+  and answered GBP 119.4m YTD (synthetic demo data).
+- **App:** ACTIVE, deployment SUCCEEDED, resources include `lakebase` + `genie-space`.
 
 ## Reproduce
 
 ```bash
-uv run python3 scripts/provision_lakebase.py \
-  --profile zoccali-fevm-aws --catalog zoccali_fevm --warehouse-id 85c1b174d196486d
+uv run python3 scripts/capture_journey_evidence.py \
+  --profile zoccali-fevm-aws --catalog zoccali_fevm \
+  --warehouse-id 85c1b174d196486d \
+  --genie-space-id 01f16db6c03419a3b953033d66b5855f
 ```
 
-The script is idempotent: it reuses an existing instance / synced table and
-re-applies the OLTP DDL with `IF NOT EXISTS` guards.
+The `end_to_end` Databricks Job is the scheduled connected run; this script is
+the committable snapshot of the same six stages on the live workspace.

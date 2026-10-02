@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added - Roadmap and architecture decision records
+
+- `docs/ROADMAP.md` - four-phase, business-outcome roadmap (foundation delivered,
+  then Agent Atlas / Sentinel, real-time + graph, field ops).
+- `docs/architecture-decisions.md` - eight short ADRs (Lakebase, Genie, Metric
+  Views, Unity Catalog, serverless, Apps, SNAPSHOT sync, dual-write close path).
+  Competitive claims are marked as positioning and sourced to public docs only.
+- `docs/ai_build_notes.md` - tools, prompts, and AI-as-teammate method.
+- `docs/evidence/end_to_end_journey.txt` - live six-stage run log (medallion
+  counts, UC lineage, model metrics, Lakebase, Genie Q-to-SQL-to-answer, app).
+- `end_to_end` job now includes `provision_lakebase` after `batch_scoring` and
+  `configure_genie` depends on it, so the Workflows DAG is one connected journey.
+
 ### Added - Lakebase operational-serving layer
 
 - **Lakebase (managed Postgres) operational-serving stage**, completing the

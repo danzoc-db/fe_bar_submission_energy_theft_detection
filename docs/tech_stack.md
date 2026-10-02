@@ -70,6 +70,10 @@ app behaves exactly as the earlier stateless build. See
 | External RDS/Aurora Postgres | Another system to run, secure and network to the app; credentials to rotate; no UC lineage. Lakebase gives managed Postgres *inside* the platform with short-lived OAuth credentials and a first-class synced table from Delta. |
 | Continuous (CDC) sync | Needs Change Data Feed and a running pipeline per table. The queue only changes after a scoring batch, so a `SNAPSHOT` (triggered) refresh is cheaper and sufficient; CDF is enabled on the source so we can switch to continuous later. |
 
+Short ADRs for these choices (and the Fabric/Azure positioning used on
+`/why-databricks`) live in [`architecture-decisions.md`](architecture-decisions.md).
+The four-phase product plan is [`ROADMAP.md`](ROADMAP.md).
+
 ---
 
 ## Application Stack

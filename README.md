@@ -1,8 +1,16 @@
 # UKI Gas Energy Theft Detection
 
-AI-driven anomaly detection for UK energy retailers - built on Databricks APX (FastAPI + React).
+**Outcome:** recover an estimated **GBP 97m/year** (30% of ~GBP 323m UKI Gas
+theft exposure) by lifting detection off the industry ~40% hit-rate toward
+the Ofgem target - with a governed path from half-hourly meter reads to
+investigator action in one Databricks platform.
 
-Energy theft costs Great Britain an estimated GBP 830m-1.4bn per year, adding GBP 29-48 to every honest household's bill. UK suppliers detect only ~40% of expected cases against regulatory targets. This demo shows how Databricks unifies ML scoring, investigator workflows, Genie natural-language queries, and AI governance in a single deployable application - helping revenue protection teams recover stolen value faster and with full auditability.
+AI-driven anomaly detection for UK energy retailers, built on Databricks APX
+(FastAPI + React). GB energy theft is estimated at GBP 830m-1.4bn per year
+(GBP 29-48 on every honest bill). This demo unifies Lakeflow, Unity Catalog,
+Isolation Forest + LSTM scoring, **Lakebase operational serving**, Genie NL,
+and the investigator app so Susie (exec) and Robbie (analyst) work from one
+audit trail.
 
 ![Hero - Energy Theft Detection Dashboard](assets/hero-screenshot.png)
 
@@ -191,6 +199,26 @@ A clean reconciliation shows 0 differences and `source=live` for external lineag
    or run `notebooks/10_provision_lakebase.py` on a cluster. The script is
    idempotent and prints a committable run log (see `docs/evidence/`).
 
+## Where next
+
+Phase 1 of this demo is **delivered**: a governed journey from Lakeflow through
+Unity Catalog and ML scoring into **Lakebase operational serving**, Genie, and
+the Databricks App for Susie (executive) and Robbie (analyst).
+
+**Next** is agentic revenue protection on the same perimeter:
+
+- **Agent Atlas** (Susie) - 2-3 days of monthly board-pack assembly to a
+  15-minute review-and-send.
+- **Agent Sentinel** (Robbie) - overnight HIGH-risk triage, postcode clustering
+  to cut truck-roll cost, and ETU alerts when 3+ HIGH accounts sit within
+  0.5 miles. Throughput target remains 25-30 cases per analyst per week.
+- Later phases add near-real-time scoring (overnight batch to minutes) and
+  field-ops scale (mobile investigation, regional drill-down, model A/B).
+
+The four-phase plan, buyer KPIs, and the platform choices behind them are in
+[`docs/ROADMAP.md`](docs/ROADMAP.md) and
+[`docs/architecture-decisions.md`](docs/architecture-decisions.md).
+
 ## Architecture
 
 - **Backend:** FastAPI (Python) — reads analytics from Delta via SQL Warehouse; reads/writes operational state from Lakebase (Postgres)
@@ -215,17 +243,21 @@ A clean reconciliation shows 0 differences and `source=live` for external lineag
 | Investigation Workbench | Robbie | Flagged accounts table, detail drawer, signal breakdown, LLM summary |
 | AI Governance | Both | PII matrix, component registry, UC lineage DAG, AI Gateway audit |
 | Why Databricks | Demo | Advisory compete page (5 sections + architecture summary) |
-| Presentation | Demo | 9-slide overview for show-me-don't-tell-me delivery |
+| Presentation | Demo | Show-not-tell overview; closing "Where next" (4-phase roadmap) |
 
 ## Documentation
 
 All documentation lives in `docs/`:
 
 - `PRD.md` - Full product requirements
-- `tech_stack.md` - Architecture decisions
+- `ROADMAP.md` - Phased roadmap (agentic revenue protection, real-time, scale)
+- `architecture-decisions.md` - ADRs incl. Lakebase, Genie vs Fabric, governance
+- `tech_stack.md` - Architecture and trade-offs
 - `demo_architecture.md` - End-to-end walkthrough
 - `databricks_workspace_setup.md` - Workspace configuration guide
 - `external-lineage.md` - Power BI external lineage setup
+- `ai_build_notes.md` - tools, prompts, and AI-as-teammate method
+- `evidence/` - committed run logs for the connected six-stage journey
 
 ## Contributing
 

@@ -43,6 +43,19 @@ Usage
         --warehouse-id 85c1b174d196486d
 
 Add ``--teardown`` to delete the synced table + instance (demo cleanup).
+
+Grant the Databricks App service principal (required for the deployed app;
+provisioning connects as the user, so the SP role has no table privileges
+until this runs):
+
+    uv run python3 scripts/provision_lakebase.py \
+        --profile zoccali-fevm-aws \
+        --skip-synced-table \
+        --grant-principal energy-theft-detection
+
+``--grant-principal`` accepts an app name, SP display name, or application id.
+Combined with ``--skip-synced-table`` it is a grant-only fast path (no Delta
+rebuild, no demo transaction).
 """
 
 from __future__ import annotations
@@ -388,6 +401,113 @@ def demo_transaction(conn) -> None:
             log(f"    audit: {ev[0]:14s} {str(ev[1]):16s} -> {str(ev[2]):16s} @ {ev[3]}")
 
 
+def grant_sql_statements(role_name: str, serving_schema: str) -> list[str]:
+    """Postgres GRANTs the deployed app SP needs on serving + OLTP schemas.
+
+    Role names are application ids (UUIDs with hyphens) so they must be quoted
+    as identifiers. ``serving_schema`` mirrors the UC schema name, not public.
+    """
+    r = role_name.replace('"', '""')
+    s = serving_schema.replace('"', '""')
+    return [
+        f'GRANT USAGE ON SCHEMA "{s}" TO "{r}"',
+        f'GRANT SELECT ON "{s}".{SERVING_SYNCED_TABLE} TO "{r}"',
+        f'GRANT USAGE ON SCHEMA {PG_SCHEMA} TO "{r}"',
+        f'GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA {PG_SCHEMA} TO "{r}"',
+        f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {PG_SCHEMA} TO "{r}"',
+        f'ALTER DEFAULT PRIVILEGES IN SCHEMA {PG_SCHEMA} '
+        f'GRANT SELECT, INSERT, UPDATE ON TABLES TO "{r}"',
+        f'ALTER DEFAULT PRIVILEGES IN SCHEMA {PG_SCHEMA} '
+        f'GRANT USAGE, SELECT ON SEQUENCES TO "{r}"',
+    ]
+
+
+def resolve_sp(w, principal: str) -> tuple[str, str]:
+    """Resolve app name / display name / id to (application_id, display_name)."""
+    principal = principal.strip()
+    if not principal:
+        raise RuntimeError("--grant-principal requires an app name, SP display name, or application id")
+
+    try:
+        app = w.apps.get(principal)
+        sp_id = app.service_principal_client_id or ""
+        if sp_id:
+            try:
+                sp = w.service_principals.get(sp_id)
+                app_id = sp.application_id or sp_id
+                display = sp.display_name or principal
+                log(f"Resolved app '{principal}' -> SP {display} (application_id={app_id})")
+                return app_id, display
+            except Exception as e:  # noqa: BLE001
+                log(f"SP lookup by client id {sp_id} failed ({e}); using client id as role")
+                return sp_id, principal
+    except Exception:
+        pass
+
+    for sp in w.service_principals.list():
+        app_id = sp.application_id or ""
+        sp_id = sp.id or ""
+        display = sp.display_name or ""
+        if principal in {app_id, sp_id, display}:
+            log(f"Resolved principal '{principal}' -> SP {display} (application_id={app_id or sp_id})")
+            return app_id or sp_id, display or principal
+
+    raise RuntimeError(
+        f"Could not resolve principal '{principal}' to a service principal "
+        "(tried apps.get and service_principals.list)"
+    )
+
+
+def ensure_pg_role(conn, application_id: str) -> str:
+    """Return the Postgres role for the SP, creating it via databricks_create_role if needed."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT rolname FROM pg_roles WHERE rolname = %s", (application_id,))
+        row = cur.fetchone()
+        if row:
+            log(f"Postgres role already exists: {row[0]}")
+            return row[0]
+        try:
+            cur.execute(
+                "SELECT databricks_create_role(%s, 'SERVICE_PRINCIPAL')",
+                (application_id,),
+            )
+            created = cur.fetchone()
+            log(f"databricks_create_role({application_id!r}, 'SERVICE_PRINCIPAL') -> {created}")
+        except Exception as e:  # noqa: BLE001
+            log(f"databricks_create_role skipped or failed: {e}")
+        cur.execute("SELECT rolname FROM pg_roles WHERE rolname = %s", (application_id,))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        cur.execute(
+            "SELECT rolname FROM pg_roles WHERE rolname ILIKE %s ORDER BY rolname",
+            (f"%{application_id}%",),
+        )
+        matches = [r[0] for r in cur.fetchall()]
+        if len(matches) == 1:
+            log(f"Matched Postgres role by ILIKE: {matches[0]}")
+            return matches[0]
+        if matches:
+            log(f"Multiple pg_roles matched {application_id}: {matches}")
+        raise RuntimeError(
+            f"Postgres role for '{application_id}' not found. Connect with psql and \\du "
+            "to inspect roles, then re-run with --grant-principal <rolname>."
+        )
+
+
+def grant_principal(w, conn, principal: str, serving_schema: str) -> str:
+    """Create (if needed) and GRANT serving + OLTP privileges to the app SP role."""
+    application_id, display = resolve_sp(w, principal)
+    role = ensure_pg_role(conn, application_id)
+    stmts = grant_sql_statements(role, serving_schema)
+    with conn.cursor() as cur:
+        for stmt in stmts:
+            cur.execute(stmt)
+            log(f"  {stmt}")
+    log(f"Granted serving+OLTP privileges to Postgres role '{role}' ({display})")
+    return role
+
+
 def verify(conn, serving_schema: str) -> None:
     """Print row counts for the synced table + OLTP tables as evidence.
 
@@ -431,6 +551,12 @@ def main() -> int:
     ap.add_argument("--warehouse-id", default=DEFAULT_WAREHOUSE_ID)
     ap.add_argument("--skip-synced-table", action="store_true",
                     help="Only (re)apply the OLTP schema; skip instance/synced-table provisioning")
+    ap.add_argument(
+        "--grant-principal",
+        metavar="SP",
+        default=None,
+        help="App name, SP display name, or application id to GRANT serving+OLTP privileges",
+    )
     ap.add_argument("--teardown", action="store_true", help="Delete synced table + instance and exit")
     args = ap.parse_args()
 
@@ -456,6 +582,19 @@ def main() -> int:
             log(f"Instance delete skipped: {e}")
         return 0
 
+    # Grant-only fast path: --grant-principal + --skip-synced-table skips the
+    # Delta rebuild and demo transaction (infra is already live).
+    if args.grant_principal and args.skip_synced_table:
+        banner("GRANT Postgres privileges to app service principal")
+        inst = w.database.get_database_instance(name=INSTANCE_NAME)
+        host = inst.read_write_dns
+        conn = pg_connect(w, host, user)
+        grant_principal(w, conn, args.grant_principal, args.schema)
+        conn.close()
+        banner("DONE")
+        log(f"Granted '{args.grant_principal}' on {INSTANCE_NAME}/{LOGICAL_DB}")
+        return 0
+
     banner("STAGE 1: Delta serving source (dedup HIGH/MEDIUM queue)")
     build_serving_source(w, args.warehouse_id, args.catalog, args.schema)
 
@@ -479,6 +618,10 @@ def main() -> int:
 
     banner("STAGE 6: Verification")
     verify(conn, args.schema)
+
+    if args.grant_principal:
+        banner("STAGE 7: GRANT Postgres privileges to app service principal")
+        grant_principal(w, conn, args.grant_principal, args.schema)
 
     conn.close()
     banner("DONE")

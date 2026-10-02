@@ -10,8 +10,20 @@ These run offline (no Databricks connectivity). They verify:
     attempting any network/credential call.
 """
 
+import importlib.util
+from pathlib import Path
+
 from energy_theft_detection.backend.config import AppConfig
 from energy_theft_detection.backend.lakebase_client import LakebaseClient
+
+
+def _provision_mod():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "provision_lakebase.py"
+    spec = importlib.util.spec_from_file_location("provision_lakebase", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
 
 
 class TestLakebaseConfigDefaults:
@@ -71,3 +83,28 @@ class TestCloseStillWorksWithoutLakebase:
         assert data["success"] is True
         assert data["outcome"] == "THEFT_CONFIRMED"
         assert data["recovered_amount"] == 1234.0
+
+
+class TestGrantPrincipalSql:
+    def test_grants_quote_uuid_role_and_uc_serving_schema(self):
+        mod = _provision_mod()
+        role = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        stmts = mod.grant_sql_statements(role, "energy_theft_protection")
+        joined = "\n".join(stmts)
+        assert f'TO "{role}"' in joined
+        assert "GRANT USAGE ON SCHEMA \"energy_theft_protection\"" in joined
+        assert "GRANT SELECT ON \"energy_theft_protection\".anomaly_scores_serving" in joined
+        assert "GRANT USAGE ON SCHEMA revenue_protection" in joined
+        assert "GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA revenue_protection" in joined
+        assert "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA revenue_protection" in joined
+
+    def test_cli_exposes_grant_principal(self):
+        text = Path("scripts/provision_lakebase.py").read_text()
+        assert "--grant-principal" in text
+
+    def test_end_to_end_job_includes_lakebase_before_genie(self):
+        yml = Path("databricks.yml").read_text()
+        assert 'task_key: "provision_lakebase"' in yml
+        assert "10_provision_lakebase.py" in yml
+        genie_block = yml.split("task_key: \"configure_genie\"", 1)[1][:500]
+        assert "provision_lakebase" in genie_block

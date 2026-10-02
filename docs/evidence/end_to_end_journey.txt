@@ -1,0 +1,157 @@
+
+========================================================================
+CONNECTED JOURNEY EVIDENCE
+========================================================================
+[2026-10-02T15:19:09Z] Authenticated as daniel.zoccali@databricks.com profile=zoccali-fevm-aws
+[2026-10-02T15:19:09Z] catalog=zoccali_fevm schema=energy_theft_protection warehouse=85c1b174d196486d
+[2026-10-02T15:19:09Z] Journey: Lakeflow -> UC -> ML -> Lakebase -> Genie -> App
+
+========================================================================
+JOB GRAPH: energy-theft-end-to-end (from databricks.yml)
+========================================================================
+[2026-10-02T15:19:09Z]   provision_lakebase present: True
+[2026-10-02T15:19:09Z]   notebook 10_provision_lakebase.py referenced: True
+[2026-10-02T15:19:09Z]   configure_genie depends on provision_lakebase: True
+[2026-10-02T15:19:09Z]   DAG: create_schema -> seed -> medallion -> train/score
+[2026-10-02T15:19:09Z]        batch_scoring -> provision_lakebase -> configure_genie
+[2026-10-02T15:19:09Z]        batch_scoring -> apply_uc_metadata -> metric_views -> lineage -> genie
+
+========================================================================
+STAGE 1: Lakeflow medallion (Delta row counts)
+========================================================================
+[2026-10-02T15:19:12Z]   zoccali_fevm.energy_theft_protection.property_reference: 2006 rows
+[2026-10-02T15:19:13Z]   zoccali_fevm.energy_theft_protection.meters: 4000 rows
+[2026-10-02T15:19:21Z]   zoccali_fevm.energy_theft_protection.smart_meter_reads: 2793758 rows
+[2026-10-02T15:19:22Z]   zoccali_fevm.energy_theft_protection.anomaly_scores: 1815 rows
+[2026-10-02T15:19:23Z]   zoccali_fevm.energy_theft_protection.investigation_cases: 6729 rows
+[2026-10-02T15:19:24Z]   zoccali_fevm.energy_theft_protection.model_performance_log: 52 rows
+[2026-10-02T15:19:25Z]   zoccali_fevm.energy_theft_protection.anomaly_scores_serving_src: 327 rows
+[2026-10-02T15:19:33Z]   zoccali_fevm.energy_theft_protection.anomaly_scores_serving: 327 rows
+
+========================================================================
+STAGE 2: Unity Catalog tags + lineage
+========================================================================
+[2026-10-02T15:19:34Z]   column tags returned: 0
+[2026-10-02T15:19:34Z]   PII-like tag rows in sample: 0
+[2026-10-02T15:19:57Z]   system.access.table_lineage rows: 15
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.property_reference -> None
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.gold_daily_consumption -> None
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.anomaly_scores -> None
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.gold_postcode_cohort_daily -> None
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.property_reference -> None
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.anomaly_scores -> None
+[2026-10-02T15:19:57Z]     None -> zoccali_fevm.energy_theft_protection.event_log_b083d664_4b08_4db4_951d_8f9055c20829
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.theft_detection_metrics -> zoccali_fevm.energy_theft_protection.__metric_view_mat_20e04f45-d3c7-45e3-9798-249b25a45a0c_monthly_kpis
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.__metric_view_mat_20e04f45-d3c7-45e3-9798-249b25a45a0c_baseline -> zoccali_fevm.energy_theft_protection.__metric_view_mat_20e04f45-d3c7-45e3-9798-249b25a45a0c_monthly_kpis
+[2026-10-02T15:19:57Z]     zoccali_fevm.energy_theft_protection.theft_detection_metrics -> zoccali_fevm.energy_theft_protection.__metric_view_mat_20e04f45-d3c7-45e3-9798-249b25a45a0c_monthly_regional_kpis
+[2026-10-02T15:19:57Z]   catalogs probe skipped: SQL failed (StatementState.FAILED): [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `name` cannot be resolved. Did you mean one of the following? [`comment`, `created`, `catalog_name`, `created_by`, `last_altered`]. SQLSTATE: 42703; line 2 pos 19
+  
+            SELECT name, system_type
+            FROM system.information_schema.catalogs
+            WHERE catalog_name = 'zoccali_fevm'
+            LIMIT 5
+            
+
+========================================================================
+STAGE 3: ML scoring (anomaly_scores + model_performance_log)
+========================================================================
+[2026-10-02T15:20:07Z]   anomaly_scores HIGH: n=146 avg=0.4168
+[2026-10-02T15:20:07Z]   anomaly_scores LOW: n=1488 avg=0.1569
+[2026-10-02T15:20:07Z]   anomaly_scores MEDIUM: n=181 avg=0.2937
+[2026-10-02T15:20:08Z]   latest HIGH-tier model_performance_log:
+[2026-10-02T15:20:08Z]     2026-09-01 if_fallback_lstm_fallback precision=81.9 recall=82.0 f1=82.0 scored=746 confirmed=611
+[2026-10-02T15:20:08Z]     2026-04-01 if_v1_lstm_v1 precision=81.1 recall=60.0 f1=69.0 scored=645 confirmed=523
+[2026-10-02T15:20:08Z]     2026-03-01 if_v1_lstm_v1 precision=76.6 recall=84.3 f1=80.3 scored=577 confirmed=441
+[2026-10-02T15:20:08Z]     2026-02-01 if_v1_lstm_v1 precision=71.3 recall=62.2 f1=66.4 scored=484 confirmed=345
+[2026-10-02T15:20:08Z]     2026-01-01 if_v1_lstm_v1 precision=67.8 recall=69.7 f1=68.7 scored=375 confirmed=254
+[2026-10-02T15:20:08Z]     2025-12-01 if_v1_lstm_v1 precision=62.7 recall=77.9 f1=69.5 scored=317 confirmed=198
+
+========================================================================
+STAGE 4: Lakebase operational serving
+========================================================================
+[2026-10-02T15:20:08Z]   instance energy-theft-lakebase state=DatabaseInstanceState.AVAILABLE capacity=CU_1
+[2026-10-02T15:20:08Z]   read_write_dns=ep-soft-scene-d2tx6fl2.database.us-east-1.cloud.databricks.com
+[2026-10-02T15:20:09Z]   synced table UC state=ProvisioningInfoState.ACTIVE sync=SyncedTableState.SYNCED_TABLE_ONLINE_NO_PENDING_UPDATE
+[2026-10-02T15:20:11Z]   Postgres serving queue rows: 327
+[2026-10-02T15:20:11Z]   Postgres OLTP cases: 7
+[2026-10-02T15:20:11Z]   Postgres OLTP events: 9
+
+========================================================================
+STAGE 5: Genie Q -> SQL -> answer
+========================================================================
+[2026-10-02T15:20:11Z]   space_id=01f16db6c03419a3b953033d66b5855f
+[2026-10-02T15:20:11Z]   question='What is the latest HIGH-tier detection precision from model_performance_log?'
+[2026-10-02T15:20:12Z]   start-conversation HTTP 200
+[2026-10-02T15:20:12Z]   conversation_id=01f1be74c2d314d29ffda88712051bcc message_id=01f1be74c2e31b5da575f24056cf83e6
+[2026-10-02T15:20:14Z]   poll 0: status=ASKING_AI
+[2026-10-02T15:20:17Z]   final status=COMPLETED
+[2026-10-02T15:20:17Z]   answer_text={'content': 'I can’t answer that from this Genie space because `model_performance_log` is not one of the available tables or metric views.', 'purpose': 'TEXT_ATTACHMENT_PURPOSE_ANSWER'}
+[2026-10-02T15:20:17Z]   content=What is the latest HIGH-tier detection precision from model_performance_log?
+[2026-10-02T15:20:17Z]   attachment_count=2
+
+========================================================================
+STAGE 6: Databricks App (energy-theft-detection)
+========================================================================
+[2026-10-02T15:20:17Z]   url=https://energy-theft-detection-7474643973020026.aws.databricksapps.com
+[2026-10-02T15:20:17Z]   compute=ComputeState.ACTIVE
+[2026-10-02T15:20:17Z]   deployment_id=01f1be5d4e4512e696af43f3ea8e6b3c
+[2026-10-02T15:20:17Z]   deployment_state=AppDeploymentState.SUCCEEDED
+[2026-10-02T15:20:17Z]   deployment_message=App started successfully
+[2026-10-02T15:20:17Z]   app_resources=['warehouse', 'serving_endpoint', 'gemini_endpoint', 'openai_endpoint', 'llama_endpoint', 'genie-space', 'lakebase']
+[2026-10-02T15:20:17Z]   service_principal_client_id=529ee364-dbdd-4a63-93d1-89bb7a33ab80
+
+========================================================================
+DONE
+========================================================================
+[2026-10-02T15:20:17Z] Six stages probed against the same workspace. See docs/evidence/.
+
+========================================================================
+STAGE 2b: Unity Catalog comments + tags (schema-local information_schema)
+========================================================================
+  column comments: 20 rows
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_baseline', 'column_name': 'Fuel Type', 'comment': 'electricity or gas'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_baseline', 'column_name': 'Postcode Sector', 'comment': 'UK postcode sector'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_baseline', 'column_name': 'Risk Tier', 'comment': 'HIGH MEDIUM LOW'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_baseline', 'column_name': 'account_id', 'comment': 'Links ML risk score to customer account'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_baseline', 'column_name': 'composite_risk_score', 'comment': 'Weighted ensemble risk score (0–1) from all ML signals'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_baseline', 'column_name': 'risk_tier', 'comment': 'Risk classification: HIGH (≥0.75), MEDIUM (≥0.50), LOW (<0.50)'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_risk_by_fuel_tier', 'column_name': 'Average Risk Score', 'comment': 'Mean composite risk score'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_risk_by_fuel_tier', 'column_name': 'Fuel Type', 'comment': 'electricity or gas'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_risk_by_fuel_tier', 'column_name': 'HIGH Risk Accounts', 'comment': 'Accounts above HIGH threshold'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_risk_by_fuel_tier', 'column_name': 'Risk Tier', 'comment': 'HIGH MEDIUM LOW'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_risk_by_fuel_tier', 'column_name': 'Total Accounts Monitored', 'comment': 'Unique accounts under scoring'}
+    {'table_name': '__48dd960b_c919_499f_9e8c_be674d72a8a3___metric_view_mat_e5532dcb-8e70-40cc-9f8e-83abe56427bd_risk_by_sector', 'column_name': 'Average Risk Score', 'comment': 'Mean composite risk score'}
+  column_tags: 0 rows
+  table_tags: 4 rows
+    {'table_name': 'energy-theft-openai-gateway_payload', 'tag_name': 'product', 'tag_value': 'ai-gateway'}
+    {'table_name': 'energy-theft-gemini-gateway_payload', 'tag_name': 'product', 'tag_value': 'ai-gateway'}
+    {'table_name': 'energy-theft-bedrock-gateway_payload', 'tag_name': 'product', 'tag_value': 'ai-gateway'}
+    {'table_name': 'energy-theft-llama-gateway_payload', 'tag_name': 'product', 'tag_value': 'ai-gateway'}
+  table comments: 10 rows
+    {'table_name': '_ground_truth_labels', 'comment': 'Ground truth labels for model evaluation — known tampered vs normal accounts.'}
+    {'table_name': 'investigation_cases', 'comment': 'Revenue protection investigation records — outcomes, LLM summaries, recovered revenue, and investigator assignment.'}
+    {'table_name': 'theft_detection_metrics', 'comment': 'Governed theft detection KPIs for Genie and executive dashboards'}
+    {'table_name': 'property_reference', 'comment': 'Customer property reference data — address, property type, EPC rating, and council tax band per account.'}
+    {'table_name': 'anomaly_scores_serving', 'comment': 'Database table synced from another UC table'}
+    {'table_name': 'meters', 'comment': 'Smart meter asset register — MPAN, serial number, fuel type, and installation details per meter.'}
+    {'table_name': 'anomaly_scores', 'comment': 'Composite ML risk scores per account — weighted ensemble of Isolation Forest, LSTM, and rule-based signals.'}
+    {'table_name': 'model_performance_log', 'comment': 'Monthly model performance metrics — precision, recall, F1 by risk tier and model version.'}
+    {'table_name': 'smart_meter_reads', 'comment': 'Half-hourly smart meter consumption reads — the primary data source for all downstream ML and analytics.'}
+    {'table_name': 'risk_exposure_metrics', 'comment': 'Risk exposure metrics for Genie queries'}
+
+========================================================================
+STAGE 5b: Genie Q -> SQL -> answer (question grounded in space tables)
+========================================================================
+  question='What is our year-to-date revenue recovered from confirmed theft?'
+  start HTTP 200
+  conversation_id=01f1be74dda914a9b034cbd87b2a48a5 message_id=01f1be74ddb21224906723d22be5b3ea
+  poll 0: status=ASKING_AI
+  poll 4: status=EXECUTING_QUERY
+  poll 8: status=ASKING_AI
+  final status=COMPLETED
+  attachment keys=['query', 'attachment_id']
+  attachment={"query": {"query": "SELECT MEASURE(`Revenue Recovered`) AS `year_to_date_revenue_recovered`\nFROM `zoccali_fevm`.`energy_theft_protection`.`theft_detection_metrics`\nWHERE `Month` >= TIMESTAMP('2026-01-01 00:00:00')\n  AND `Month` <= CURRENT_TIMESTAMP()\nGROUP BY ALL", "description": "You want to see the total revenue recovered from confirmed theft cases for the current year up to today.", "statement_id": "01f1be74-e0bb-16a5-be39-b2aae9db6a2f", "query_result_metadata": {"row_count": 1}, "thoughts": [{"thought_type": "THOUGHT_TYPE_DESCRIPTION", "content": "You want to see the total revenue recovered from confirmed theft cases for the current year up to today."}, {"thought_type": "THOUGHT_TYPE_DATA_SOURCING", "content": "- zoccali_fevm.energy_theft_protection.theft_detection_metrics"}, {"thought_type": "THOUGHT_TYPE_STEPS", "content": "- Filter the data to include only months from January 1, 2026, through the current date.\n- Sum the revenue recovered from confirmed theft cases within this period.\n- Return the total year-to-date revenue recovered as a single value."}]}, "attachment_id": "01f1be74e0a71bcdb0fdc5f1205e9266"}
+  attachment keys=['suggested_questions', 'attachment_id']
+  attachment={"suggested_questions": {"questions": ["What is the monthly trend of revenue recovered from confirmed theft cases in 2026?", "Which regions have the highest revenue recovered from confirmed theft cases year-to-date?", "What is the average revenue recovered per confirmed theft case year-to-date?"]}, "attachment_id": "01f1be74e1f01a2cba8396b58d90a038"}
+  attachment keys=['text']
+  attachment={"text": {"content": "Year-to-date **Revenue Recovered** from `theft_detection_metrics` is **\u00a3119,407,639.45** for the period from **2026-01-01** through **the current timestamp**. Based on this single result, year-to-date recovered revenue is **\u00a3119.4M**.", "purpose": "TEXT_ATTACHMENT_PURPOSE_ANSWER"}}

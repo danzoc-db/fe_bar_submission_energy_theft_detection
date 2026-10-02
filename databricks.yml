@@ -273,6 +273,16 @@ resources:
               catalog: "${var.catalog}"
               schema: "${var.schema}"
           environment_key: "ml_env"
+        - task_key: "provision_lakebase"
+          depends_on:
+            - task_key: "batch_scoring"
+          notebook_task:
+            notebook_path: "./notebooks/10_provision_lakebase.py"
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+              warehouse_id: "${var.sql_warehouse_id}"
+          environment_key: "default_env"
         - task_key: "apply_uc_metadata"
           depends_on:
             - task_key: "batch_scoring"
@@ -304,6 +314,7 @@ resources:
         - task_key: "configure_genie"
           depends_on:
             - task_key: "configure_external_lineage"
+            - task_key: "provision_lakebase"
           notebook_task:
             notebook_path: "./notebooks/06_configure_genie.py"
             base_parameters:
@@ -346,6 +357,7 @@ resources:
             client: "2"
             dependencies:
               - "httpx"
+              - "psycopg[binary]>=3.2.0"
 
 variables:
   sql_warehouse_id:
@@ -527,21 +539,24 @@ targets:
       # synced table are reproducible via `bundle deploy`. The OLTP schema
       # (revenue_protection.*) is applied by the script/notebook, which also
       # builds the deduped Delta source table the synced table reads from.
-      database_instances:
-        energy_theft_lakebase:
-          name: "energy-theft-lakebase"
-          capacity: "CU_1"
-      synced_database_tables:
-        anomaly_scores_serving:
-          name: "zoccali_fevm.energy_theft_protection.anomaly_scores_serving"
-          database_instance_name: "energy-theft-lakebase"
-          logical_database_name: "databricks_postgres"
-          spec:
-            source_table_full_name: "zoccali_fevm.energy_theft_protection.anomaly_scores_serving_src"
-            primary_key_columns:
-              - "serving_key"
-            scheduling_policy: "SNAPSHOT"
-            create_database_objects_if_missing: true
+      # NOTE: For current aws deploy we keep Lakebase instance + synced table
+      # under script ownership (scripts/provision_lakebase.py) to avoid
+      # declarative "already exists" takeover conflicts.
+      # database_instances:
+      #   energy_theft_lakebase:
+      #     name: "energy-theft-lakebase"
+      #     capacity: "CU_1"
+      # synced_database_tables:
+      #   anomaly_scores_serving:
+      #     name: "zoccali_fevm.energy_theft_protection.anomaly_scores_serving"
+      #     database_instance_name: "energy-theft-lakebase"
+      #     logical_database_name: "databricks_postgres"
+      #     spec:
+      #       source_table_full_name: "zoccali_fevm.energy_theft_protection.anomaly_scores_serving_src"
+      #       primary_key_columns:
+      #         - "serving_key"
+      #       scheduling_policy: "SNAPSHOT"
+      #       create_database_objects_if_missing: true
       apps:
         energy-theft-detection-app:
           resources:

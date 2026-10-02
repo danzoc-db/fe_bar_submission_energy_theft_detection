@@ -273,6 +273,11 @@ function ArchitectureSummary() {
           programme into the hands of its investigators — and what is the cost
           of delay?
         </p>
+        <p className="mt-4 text-xs text-center text-muted-foreground">
+          Platform choices are recorded as ADRs in docs/architecture-decisions.md.
+          The four-phase plan is docs/ROADMAP.md (Phase 1 delivered; Atlas and
+          Sentinel next).
+        </p>
       </CardContent>
     </Card>
   );

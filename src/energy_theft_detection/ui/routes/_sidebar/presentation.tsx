@@ -104,6 +104,37 @@ const GETTING_STARTED = [
   },
 ] as const;
 
+const WHERE_NEXT = [
+  {
+    phase: "1",
+    status: "Delivered",
+    title: "Phase 1 - Platform foundation",
+    body: "Lakeflow, Unity Catalog, Isolation Forest + LSTM, Lakebase serving, Genie, and this app for Susie and Robbie.",
+    kpi: "Governed ingest-to-act journey, live today.",
+  },
+  {
+    phase: "2",
+    status: "Next",
+    title: "Phase 2 - Agentic revenue protection",
+    body: "Agent Atlas turns 2-3 days of board-pack assembly into a 15-minute review. Agent Sentinel triages HIGH flags, clusters truck rolls, and raises ETU alerts.",
+    kpi: "Analyst-days/month saved; 25-30 cases/week; lower cost per confirmed case.",
+  },
+  {
+    phase: "3",
+    status: "Later",
+    title: "Phase 3 - Real-time and graph",
+    body: "Near-real-time scoring, organised-crime graph clusters, and CONTINUOUS Lakebase sync (CDF already on the source).",
+    kpi: "Detection latency: overnight batch to minutes.",
+  },
+  {
+    phase: "4",
+    status: "Later",
+    title: "Phase 4 - Scale and field ops",
+    body: "Model A/B monitoring, tablet investigation view, heatmap drill-down, and Robbie's operational Genie space.",
+    kpi: "More of the estate covered without more analyst hours.",
+  },
+] as const;
+
 export const Route = createFileRoute("/_sidebar/presentation")({
   component: BuildAnAppLikeThisPage,
 });
@@ -270,6 +301,49 @@ function BuildAnAppLikeThisPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <Separator />
+
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <Badge variant="outline" className="text-[10px]">
+            Closing
+          </Badge>
+          <h2 className="text-xl font-semibold">Where next</h2>
+          <p className="text-sm text-muted-foreground max-w-3xl leading-relaxed">
+            Phase 1 is live: a governed path from Lakeflow through Unity Catalog and
+            ML scoring into Lakebase operational serving, Genie, and this app. The
+            next value is not another dashboard. It is taking days of analyst work
+            out of board packs and truck rolls, then collapsing detection from
+            overnight batch to near-real-time.
+          </p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {WHERE_NEXT.map((item) => (
+            <div key={item.phase} className="rounded-lg border bg-card p-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-semibold text-sm">{item.title}</h3>
+                <Badge
+                  variant={item.status === "Delivered" ? "secondary" : "outline"}
+                  className="text-[10px] shrink-0"
+                >
+                  {item.status}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">{item.body}</p>
+              <p className="text-xs font-medium text-foreground/80">{item.kpi}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Full plan and ADRs: docs/ROADMAP.md and docs/architecture-decisions.md.
+          Advisory compete walkthrough stays on{" "}
+          <Link to="/why-databricks" className="underline hover:text-foreground">
+            Why Databricks
+          </Link>
+          .
+        </p>
       </section>
 
       {/* Footer CTA */}

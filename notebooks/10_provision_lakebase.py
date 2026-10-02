@@ -111,7 +111,7 @@ prov.apply_oltp_schema(conn)
 
 # Stage 5 + 6: demo transaction + verification
 prov.demo_transaction(conn)
-prov.verify(conn)
+prov.verify(conn, SCHEMA)
 conn.close()
 
 print("Lakebase operational-serving layer provisioned and verified.")
@@ -121,8 +121,12 @@ print("Lakebase operational-serving layer provisioned and verified.")
 # MAGIC %md
 # MAGIC ## Next steps
 # MAGIC
-# MAGIC - Enable the app's Lakebase path by deploying the `zoccali-fevm-aws` target
-# MAGIC   (it sets `LAKEBASE_ENABLED=true` and binds the `database` app resource).
+# MAGIC - Enable the app's Lakebase path by deploying a target that sets
+# MAGIC   `LAKEBASE_ENABLED=true` and binds the `database` app resource.
+# MAGIC - This notebook is task `provision_lakebase` on the `end_to_end` job: it
+# MAGIC   runs after `batch_scoring` (so `anomaly_scores` exists) and before
+# MAGIC   `configure_genie`, so the Workflows DAG is one connected journey:
+# MAGIC   Lakeflow -> UC -> ML -> Lakebase -> Genie -> App.
 # MAGIC - The synced table refreshes on a `SNAPSHOT` schedule; trigger a refresh
 # MAGIC   after each scoring batch (`04_batch_scoring.py`) so the serving queue
 # MAGIC   reflects the latest model output.
