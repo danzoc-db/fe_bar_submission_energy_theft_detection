@@ -514,7 +514,7 @@ targets:
       profile: zoccali-fevm-aws
     artifacts:
       default:
-        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py zoccali_fevm \"\" 01f16db6c03419a3b953033d66b5855f && python3 scripts/verify_app_permissions.py --profile zoccali-fevm-aws --catalog zoccali_fevm --genie-space-id 01f16db6c03419a3b953033d66b5855f --fix"
+        build: "BUN_CONFIG_NO_VERIFY=1 uv run apx build && python3 scripts/patch_app_yml.py zoccali_fevm \"\" 01f16db6c03419a3b953033d66b5855f true && python3 scripts/verify_app_permissions.py --profile zoccali-fevm-aws --catalog zoccali_fevm --genie-space-id 01f16db6c03419a3b953033d66b5855f --fix"
     variables:
       catalog: "zoccali_fevm"
       sql_warehouse_id: "85c1b174d196486d"
@@ -522,6 +522,26 @@ targets:
       # Empty by default; 08_configure_agent_atlas.py creates MAS and prints endpoint name.
       mas_endpoint: ""
     resources:
+      # --- Lakebase operational-serving layer (aws target) ------------------
+      # Declarative mirror of scripts/provision_lakebase.py so the instance +
+      # synced table are reproducible via `bundle deploy`. The OLTP schema
+      # (revenue_protection.*) is applied by the script/notebook, which also
+      # builds the deduped Delta source table the synced table reads from.
+      database_instances:
+        energy_theft_lakebase:
+          name: "energy-theft-lakebase"
+          capacity: "CU_1"
+      synced_database_tables:
+        anomaly_scores_serving:
+          name: "zoccali_fevm.energy_theft_protection.anomaly_scores_serving"
+          database_instance_name: "energy-theft-lakebase"
+          logical_database_name: "databricks_postgres"
+          spec:
+            source_table_full_name: "zoccali_fevm.energy_theft_protection.anomaly_scores_serving_src"
+            primary_key_columns:
+              - "serving_key"
+            scheduling_policy: "SNAPSHOT"
+            create_database_objects_if_missing: true
       apps:
         energy-theft-detection-app:
           resources:
@@ -550,3 +570,8 @@ targets:
                 name: "Revenue Protection Executive Intelligence"
                 space_id: "${var.genie_space_id}"
                 permission: "CAN_RUN"
+            - name: "lakebase"
+              database:
+                instance_name: "energy-theft-lakebase"
+                database_name: "databricks_postgres"
+                permission: "CAN_CONNECT_AND_CREATE"

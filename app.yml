@@ -18,3 +18,14 @@ env:
     value: ""  # CATALOG
   - name: "SCHEMA_NAME"
     value: "energy_theft_protection"
+  # --- Lakebase (operational serving). OFF by default; enabled per-target. ---
+  - name: "LAKEBASE_ENABLED"
+    value: "false"  # LAKEBASE_ENABLED
+  - name: "LAKEBASE_INSTANCE_NAME"
+    value: "energy-theft-lakebase"
+  - name: "LAKEBASE_DATABASE"
+    value: "databricks_postgres"
+  - name: "LAKEBASE_SCHEMA"
+    value: "revenue_protection"
+  - name: "LAKEBASE_SERVING_TABLE"
+    value: "anomaly_scores_serving"

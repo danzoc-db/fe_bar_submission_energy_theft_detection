@@ -62,6 +62,26 @@ class AppConfig(BaseSettings):
         default="energy_theft_protection", validation_alias="SCHEMA_NAME"
     )
 
+    # --- Lakebase (operational serving) -------------------------------------
+    # When disabled (default), the app runs the Delta-only path unchanged.
+    # Enable by setting LAKEBASE_ENABLED=true once the instance is provisioned
+    # (see scripts/provision_lakebase.py).
+    lakebase_enabled: bool = Field(
+        default=False, validation_alias="LAKEBASE_ENABLED"
+    )
+    lakebase_instance_name: str = Field(
+        default="energy-theft-lakebase", validation_alias="LAKEBASE_INSTANCE_NAME"
+    )
+    lakebase_database: str = Field(
+        default="databricks_postgres", validation_alias="LAKEBASE_DATABASE"
+    )
+    lakebase_schema: str = Field(
+        default="revenue_protection", validation_alias="LAKEBASE_SCHEMA"
+    )
+    lakebase_serving_table: str = Field(
+        default="anomaly_scores_serving", validation_alias="LAKEBASE_SERVING_TABLE"
+    )
+
     @property
     def workspace_url(self) -> str:
         """Derive workspace URL from DATABRICKS_HOST (set automatically in deployed

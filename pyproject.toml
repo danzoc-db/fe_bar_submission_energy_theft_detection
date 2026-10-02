@@ -11,6 +11,9 @@ dependencies = [
     "databricks-sdk>=0.74.0",
     "httpx>=0.27",
     "python-dotenv>=1.0.0",
+    # Lakebase operational-serving layer (Postgres). Optional at runtime: the
+    # app falls back to the Delta path when LAKEBASE_ENABLED is unset.
+    "psycopg[binary]>=3.2.0",
 ]
 
 [dependency-groups]

@@ -17,13 +17,16 @@
 │          │                                                        │
 └──────────┼────────────────────────────────────────────────────────┘
            │
-   ┌───────┴────────┐         ┌───────────────────────┐
-   │ SQL Warehouse  │         │    AI Gateway          │
-   │ Statement Exec │         │  (Bedrock LLM proxy)   │
-   │   API (read)   │         └───────────────────────┘
-   └───────┬────────┘
-           │
-   ┌───────┴─────────────────────────────────────────────┐
+   ┌───────┴────────┐  ┌──────────────────┐  ┌─────────────────────┐
+   │ SQL Warehouse  │  │ Lakebase          │  │    AI Gateway       │
+   │ Statement Exec │  │ (managed Postgres)│  │  (Bedrock LLM proxy)│
+   │   API (read)   │  │  read + write     │  └─────────────────────┘
+   └───────┬────────┘  └────────┬─────────┘
+           │                    │
+           │        synced table (Delta -> Postgres)
+           │        + reverse sync (closed cases -> Delta)
+           │                    │
+   ┌───────┴────────────────────┴─────────────────────────┐
    │             Unity Catalog                            │
    │  <your_catalog>.energy_theft_protection                    │
    │  ┌────────────┐ ┌──────────────┐ ┌───────────────┐  │
@@ -35,12 +38,37 @@
    │  │(Susie's exec NL) │ │(AI Gateway audit trail)   │  │
    │  └──────────────────┘ └───────────────────────────┘  │
    └──────────────────────────────────────────────────────┘
+
+   Lakebase (managed Postgres, operational serving):
+     public.anomaly_scores_serving     <- synced from Delta gold (read path)
+     revenue_protection.investigation_cases + case_events (OLTP write path)
 ```
 
-**Key decision: Stateless architecture (no Lakebase).** This demo reads from Delta
-tables via SQL Warehouse. There is no OLTP write-back layer. All data is pre-computed
-and batch-loaded. This keeps the demo simple, deployable, and focused on the AI/ML
-governance story rather than transactional complexity.
+**Key decision: Lakebase for operational serving.** The analytical path (medallion
+pipeline, ML scoring, Genie) lives in Delta via SQL Warehouse. The *operational*
+path lives in Lakebase (managed Postgres):
+
+- A **synced table** `anomaly_scores_serving` is kept in sync from the Delta gold
+  table (Delta -> Postgres) so the investigator app serves the flagged-account
+  queue at OLTP latency without a SQL Warehouse cold-start on every page load.
+- A native-Postgres **OLTP schema** `revenue_protection` holds the transactional
+  case state (`investigation_cases` + an append-only `case_events` audit log with
+  a trigger that records every state transition). The app writes case open /
+  assign / close actions here with millisecond, read-your-writes commits.
+
+The Delta MERGE still runs as the analytics / Genie reverse-sync path, so closed
+cases remain queryable in natural language. The layer is **feature-flagged**
+(`LAKEBASE_ENABLED`): when off, every call falls back to the Delta path and the
+app behaves exactly as the earlier stateless build. See
+`scripts/provision_lakebase.py` and `notebooks/10_provision_lakebase.py`.
+
+**Trade-offs considered:**
+
+| Option | Why not |
+|--------|---------|
+| Delta-only (previous design) | Interactive case writes become async Delta MERGEs (seconds, eventual consistency); the queue read pays a warehouse cold-start. Fine for a static demo, wrong for a live revenue-protection workflow. |
+| External RDS/Aurora Postgres | Another system to run, secure and network to the app; credentials to rotate; no UC lineage. Lakebase gives managed Postgres *inside* the platform with short-lived OAuth credentials and a first-class synced table from Delta. |
+| Continuous (CDC) sync | Needs Change Data Feed and a running pipeline per table. The queue only changes after a scoring batch, so a `SNAPSHOT` (triggered) refresh is cheaper and sufficient; CDF is enabled on the source so we can switch to continuous later. |
 
 ---
 
@@ -53,12 +81,17 @@ governance story rather than transactional complexity.
 | Web Framework | `fastapi` | REST API with OpenAPI schema generation |
 | ASGI Server | `uvicorn` | Production-grade async server |
 | Validation | `pydantic` / `pydantic-settings` | Request/response models, typed config |
-| Databricks SDK | `databricks-sdk` | SQL Warehouse statement execution, Genie API, AI Gateway |
+| Databricks SDK | `databricks-sdk` | SQL Warehouse statement execution, Genie API, AI Gateway, Lakebase credentials |
 | HTTP | `httpx` | Async HTTP client for Databricks API calls |
+| Postgres driver | `psycopg` (v3) | Lakebase connections for the operational-serving path |
 
-**Why no ORM:** No Lakebase/PostgreSQL. All queries use the Databricks SDK
-Statement Execution API against SQL Warehouse. Responses are mapped to Pydantic
-models in the API layer.
+**Data access, two paths:** analytical reads/writes use the Databricks SDK
+Statement Execution API against SQL Warehouse (Delta), mapped to Pydantic models.
+The operational-serving path uses `psycopg` against Lakebase (Postgres) with
+short-lived OAuth credentials minted via
+`WorkspaceClient.database.generate_database_credential` (no stored passwords).
+We deliberately keep raw SQL over an ORM: the queries are few and explicit, and
+the same style spans both the SQL Warehouse and Postgres clients.
 
 ### Frontend: React + TypeScript + Vite
 

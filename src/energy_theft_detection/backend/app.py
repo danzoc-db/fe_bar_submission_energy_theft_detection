@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from .._metadata import app_name, dist_dir
 from .config import AppConfig
 from .logger import logger
+from .lakebase_client import LakebaseClient
 from .router import api, _warm_cache, _check_schema_access
 from .sql_client import SQLClient
 from .utils import add_not_found_handler
@@ -52,6 +53,20 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("SQL_WAREHOUSE_ID not set — SQL queries disabled")
         app.state.sql_client = None
+
+    # Lakebase operational-serving client (optional). Health check is lazy, so
+    # construction is cheap even when disabled; the Delta path is unaffected.
+    app.state.lakebase_client = None
+    if config.lakebase_enabled:
+        try:
+            app.state.lakebase_client = LakebaseClient(config)
+            logger.info(
+                f"Lakebase client initialised (instance={config.lakebase_instance_name})"
+            )
+        except Exception as e:
+            logger.warning(f"Lakebase client failed to initialise: {e}")
+    else:
+        logger.info("Lakebase disabled (LAKEBASE_ENABLED not set) — Delta-only path")
 
     app.state.config = config
     yield

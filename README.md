@@ -88,6 +88,9 @@ cp .env.local.example .env.local
 | `GENIE_SPACE_ID` | No | Genie Space ID for executive NL queries |
 | `CATALOG` | No | Unity Catalog catalog name |
 | `SCHEMA_NAME` | No | UC schema (default: `energy_theft_protection`) |
+| `LAKEBASE_ENABLED` | No | Enable the Lakebase operational-serving path (default: `false`) |
+| `LAKEBASE_INSTANCE_NAME` | No | Lakebase instance name (default: `energy-theft-lakebase`) |
+| `LAKEBASE_SCHEMA` | No | Postgres OLTP schema (default: `revenue_protection`) |
 
 ### Running Tests
 
@@ -178,13 +181,23 @@ A clean reconciliation shows 0 differences and `source=live` for external lineag
 
 1. Run `sql/01_create_tables.sql` to create the Unity Catalog tables
 2. Run `notebooks/01_generate_synthetic_data.py` as a notebook on a cluster to populate 100K synthetic accounts
+3. Provision the Lakebase operational-serving layer (instance + synced table + OLTP schema):
+
+   ```bash
+   uv run python3 scripts/provision_lakebase.py \
+     --profile <your-profile> --catalog <your_catalog> --warehouse-id <your-warehouse-id>
+   ```
+
+   or run `notebooks/10_provision_lakebase.py` on a cluster. The script is
+   idempotent and prints a committable run log (see `docs/evidence/`).
 
 ## Architecture
 
-- **Backend:** FastAPI (Python) — stateless, reads from Delta tables via SQL Warehouse Statement Execution API
+- **Backend:** FastAPI (Python) — reads analytics from Delta via SQL Warehouse; reads/writes operational state from Lakebase (Postgres)
 - **Frontend:** React + TypeScript + Vite + shadcn/ui + TanStack Router/Query
-- **Data:** Unity Catalog (`<your_catalog>.energy_theft_protection`)
-- **ML:** Isolation Forest + LSTM ensemble (pre-computed scores in Delta)
+- **Data (analytics):** Unity Catalog (`<your_catalog>.energy_theft_protection`), Delta tables + Metric Views
+- **Data (operational serving):** Lakebase (managed Postgres) — a synced table of the risk queue from Delta, plus an OLTP case-management schema (`revenue_protection.investigation_cases` + `case_events` audit log)
+- **ML:** Isolation Forest + LSTM ensemble (pre-computed scores in Delta, synced to Lakebase for serving)
 - **NL:** Genie Conversation API (executive queries over Metric Views)
 - **LLM:** FMAPI (openai-gateway → `databricks-claude-sonnet-4`) via AI Gateway (investigation case summaries); Bedrock gateway also deployed but not the default
 - **Deploy:** Databricks Apps via DABs (Databricks Asset Bundles)

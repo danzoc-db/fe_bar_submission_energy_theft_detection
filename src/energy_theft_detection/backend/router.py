@@ -70,6 +70,15 @@ def _sql(request: Request) -> SQLClient | None:
     return getattr(request.app.state, "sql_client", None)
 
 
+def _lakebase(request: Request):
+    """Return the Lakebase client if the operational-serving layer is enabled.
+
+    Returns ``None`` when Lakebase is disabled/unavailable so every caller
+    transparently falls back to the Delta path.
+    """
+    return getattr(request.app.state, "lakebase_client", None)
+
+
 def _workspace_host(db: SQLClient) -> str:
     """Clean workspace host URL from the SDK config (strips query params like ?o=)."""
     raw = str(db._client.config.host or "")
@@ -2092,6 +2101,30 @@ async def close_investigation(request: Request, account_id: str, body: Investiga
     db_outcome = _OUTCOME_MAP[body.outcome]
     recovered = body.recovered_amount if body.outcome == "confirmed_theft" else None
 
+    new_status = "CONFIRMED_THEFT" if db_outcome == "THEFT_CONFIRMED" else "CLOSED"
+
+    # --- Operational-serving path: commit case state to Lakebase (Postgres) ---
+    # This is the interactive, read-your-writes system of record for case
+    # lifecycle. The Delta MERGE below still runs as the analytics / Genie
+    # reverse-sync path. If Lakebase is disabled or unavailable, lb is None and
+    # we fall back to the Delta-only behaviour unchanged.
+    lb = _lakebase(request)
+    lakebase_committed = False
+    if lb is not None:
+        row = lb.close_case(
+            account_id,
+            outcome=db_outcome,
+            status=new_status,
+            recovered_gbp=recovered,
+            notes=body.notes,
+        )
+        lakebase_committed = row is not None
+        if lakebase_committed:
+            logger.info(
+                f"Case for {account_id} committed to Lakebase: {row.get('case_id')} "
+                f"({row.get('status')})"
+            )
+
     db = _sql(request)
     if not db:
         logger.warning(f"Close investigation (demo mode) for {account_id}: {body.outcome}")
@@ -2106,8 +2139,6 @@ async def close_investigation(request: Request, account_id: str, body: Investiga
 
     recovered_sql = str(recovered) if recovered is not None else "NULL"
     notes_safe = (body.notes or "").replace("'", "''")
-
-    new_status = "CONFIRMED_THEFT" if db_outcome == "THEFT_CONFIRMED" else "CLOSED"
 
     merge_sql = f"""
         MERGE INTO investigation_cases AS t
@@ -2164,8 +2195,34 @@ async def close_investigation(request: Request, account_id: str, body: Investiga
         account_id=account_id,
         outcome=db_outcome,
         recovered_amount=recovered,
-        message="Investigation closed and written to Lakebase",
+        message=(
+            "Investigation closed — committed to Lakebase and synced to Delta"
+            if lakebase_committed
+            else "Investigation closed and written to the lakehouse (Delta)"
+        ),
     )
+
+
+@api.get("/investigation/{account_id}/case", operation_id="getInvestigationCase")
+async def get_investigation_case(request: Request, account_id: str):
+    """Return the live Lakebase case + audit trail for an account.
+
+    Reads the transactional case state and the append-only ``case_events`` log
+    straight from Lakebase (Postgres). When Lakebase is disabled this returns
+    ``source="delta"`` with no case/events so the UI can degrade gracefully.
+    """
+    lb = _lakebase(request)
+    if lb is None or not lb.available():
+        return {"source": "delta", "lakebase_enabled": False, "case": None, "events": []}
+
+    case = lb.get_case(account_id)
+    events = lb.list_events(account_id) or []
+    return {
+        "source": "lakebase",
+        "lakebase_enabled": True,
+        "case": case,
+        "events": events,
+    }
 
 
 # ---------------------------------------------------------------------------
